@@ -11,9 +11,11 @@ app = FastAPI(title="LendClear AI API")
 # 2. Configure Gemini "Voice"
 # Get your key from: https://aistudio.google.com/
 genai.configure(api_key="AIzaSyB7T0LBMV82nzcCnHczSBpBaqsynELDR-U")
-llm_model = genai.GenerativeModel('gemini-1.5-flash')
-
-# 3. Load the "Brain"
+for m in genai.list_models():
+    if 'generateContent' in m.supported_generation_methods:
+        print(m.name)
+# Change this to use one of the 2026 models from your list
+llm_model = genai.GenerativeModel('gemini-2.0-flash')
 model = xgb.XGBClassifier()
 try:
     model.load_model("../ml_research/loan_model_xgb.json")
