@@ -1,0 +1,53 @@
+[33mcommit 3acdf8cc455cd2f9d0bd293318843aceff926bb5[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Wed May 6 22:03:05 2026 +0300
+
+    starting the frontend
+
+[33mcommit bc0d740a0fb7e5cfbd9e60c114a4ad70468e730f[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Tue May 5 22:04:21 2026 +0300
+
+    changing api key from gemini to openai
+
+[33mcommit fc89fa8c23dc04afa66990140915f5b23f8bb986[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Tue May 5 00:00:36 2026 +0300
+
+    integrating the correct model ai
+
+[33mcommit eb924d21f666420f8d12a643ce682e2cc70701fe[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Mon May 4 23:39:59 2026 +0300
+
+    integrating gemeni ai for the appropriate response to the users
+
+[33mcommit 58939170d506b08c4f04627f66de6246b46f0fa3[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Mon May 4 22:56:28 2026 +0300
+
+    inseting shap to generate a more meaningfull result
+
+[33mcommit 08f9d7b43325e2b920a5cbe10575b04f9e9da164[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Mon May 4 13:31:49 2026 +0300
+
+    fixing the dataset coloumns name with the code ones
+
+[33mcommit da2e433ea6e749e551654471ec2101794cb8716e[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Mon May 4 12:33:15 2026 +0300
+
+    reconstructing the code to match the csv columns name with the code column names
+
+[33mcommit a356dd37f60fd0053f9e95b3510edb1657031e23[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Mon May 4 12:11:57 2026 +0300
+
+    adding the training.py file to traning logic
+
+[33mcommit 64ea13973aac589a9a52bb5a8c6b6a507ba9a890[m
+Author: Your Real Name <surafelmuhabaw17@gmail.com>
+Date:   Mon May 4 12:06:08 2026 +0300
+
+    setting up the file structure
