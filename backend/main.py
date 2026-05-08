@@ -10,6 +10,13 @@ import os
 # 1. Initialize FastAPI
 app = FastAPI(title="LendClear AI API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"], # The address of your React app
+    allow_credentials=True,
+    allow_methods=["*"], # Allows POST, GET, etc.
+    allow_headers=["*"], # Allows all headers
+)
 # ==========================================
 # 2. DEBUGGING & LOGGING ENGINE SETUP
 # ==========================================

@@ -1,20 +1,24 @@
-/**
- * runEvaluation — sends applicant data to the ML backend.
- *
- * To connect to your real FastAPI, replace the body of this function with:
- *
- *   const res = await fetch('http://127.0.0.1:8000/predict', {
- *     method: 'POST',
- *     headers: { 'Content-Type': 'application/json' },
- *     body: JSON.stringify(payload),
- *   })
- *   if (!res.ok) throw new Error('Backend error')
- *   return res.json()
- */
-export async function runEvaluation(payload) {
-  // Simulated 2-second network delay
-  await new Promise((r) => setTimeout(r, 2000));
+import axios from "axios";
 
+const API_URL = "http://127.0.0.1:8000/predict";
+
+/**
+ * runEvaluation — POSTs applicant data to FastAPI and returns the prediction.
+ *
+ * To switch between mock and real:
+ *   - Real API:  set USE_MOCK = false
+ *   - Mock data: set USE_MOCK = true  (safe for development without backend)
+ */
+const USE_MOCK = true; // ← flip to false when your FastAPI server is running
+
+export async function runEvaluation(payload) {
+  if (!USE_MOCK) {
+    const { data } = await axios.post(API_URL, payload);
+    return data;
+  }
+
+  /* ── Mock (mirrors real FastAPI response shape exactly) ── */
+  await new Promise((r) => setTimeout(r, 2200));
   const approved = payload.credit_score >= 650;
 
   return {
@@ -23,8 +27,8 @@ export async function runEvaluation(payload) {
     confidence: approved ? 0.87 : 0.94,
     top_reason: approved ? "Annual Income" : "Credit Score",
     ai_voice_message: approved
-      ? "Decision Logic Path: Application cleared for funding. Primary accelerating factor: Annual Income. Strong employment tenure offsets the moderate loan-to-income ratio at the requested amount."
-      : "Decision Logic Path: Application flagged for secondary review. Primary deciding factor: Credit Score. Income stability is insufficient to offset the perceived risk at the requested loan amount.",
+      ? "This profile shows exceptional stability. The high credit score and consistent employment history significantly mitigate potential default risks. I recommend proceeding with the current terms and requested loan amount."
+      : "This application has been flagged for secondary review. The primary deciding factor is an insufficient credit score. Income stability alone is not enough to offset the perceived risk at the requested loan amount. Recommend revisiting after credit rehabilitation.",
     raw_data: {
       credit_score: approved ? 0.223 : -0.682,
       income: approved ? 0.412 : 0.154,
