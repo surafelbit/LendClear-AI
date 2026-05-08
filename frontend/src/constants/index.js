@@ -25,8 +25,19 @@ export const NAV_ITEMS = [
     id: "application",
     divider: true,
   },
-  { icon: "analytics", label: "Risk Analytics", active: false },
+  {
+    icon: "analytics",
+    label: "Risk Analytics",
+    id: "application",
+    active: false,
+  },
   { icon: "verified_user", label: "Compliance Engine", active: false },
-  { icon: "history", label: "Audit Logs", active: false, divider: true },
+  {
+    icon: "history",
+    label: "Audit Logs",
+    id: "audit",
+    active: false,
+    divider: true,
+  },
   { icon: "settings", label: "System Settings", active: false },
 ];
