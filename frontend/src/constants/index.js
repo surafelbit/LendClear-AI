@@ -18,7 +18,13 @@ export const FORM_FIELDS = [
 
 export const NAV_ITEMS = [
   { icon: "dashboard", label: "Portfolio Overview", active: false },
-  { icon: "add_circle", label: "New Application", active: true },
+  {
+    icon: "add_circle",
+    label: "New Application",
+    active: true,
+    id: "application",
+    divider: true,
+  },
   { icon: "analytics", label: "Risk Analytics", active: false },
   { icon: "verified_user", label: "Compliance Engine", active: false },
   { icon: "history", label: "Audit Logs", active: false, divider: true },
