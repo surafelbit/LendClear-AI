@@ -1,112 +1,90 @@
-import { useState, useRef } from "react";
+import { useState } from 'react'
 
-import { runEvaluation } from "./api/evaluate";
-import { FORM_FIELDS } from "./constants";
+import TopBar    from './components/layout/TopBar'
+import Sidebar   from './components/layout/Sidebar'
 
-import TopBar from "./components/layout/TopBar";
-import Sidebar from "./components/layout/Sidebar";
-import ApplicantForm from "./components/form/ApplicantForm";
-import ResultsPanel from "./components/results/ResultsPanel";
+// Pages
+import PortfolioOverviewPage from './pages/PortfolioOverviewPage'
+import NewApplicationPage    from './pages/NewApplicationPage'
+import RiskAnalyticsPage     from './pages/RiskAnalyticsPage'
+import ComplianceEnginePage  from './pages/ComplianceEnginePage'
+import AuditLogsPage         from './pages/AuditLogsPage'
+import SystemSettingsPage    from './pages/SystemSettingsPage'
 
-/* ── Initial form values ── */
-const INITIAL_FORM = {
-  city: "102",
-  income: "68500",
-  credit_score: "582",
-  loan_amount: "450000",
-  years_employed: "3",
-  points: "12",
-};
+/* ── Page registry — maps nav id → component ── */
+const PAGES = {
+  overview:    PortfolioOverviewPage,
+  application: NewApplicationPage,
+  analytics:   RiskAnalyticsPage,
+  compliance:  ComplianceEnginePage,
+  audit:       AuditLogsPage,
+  settings:    SystemSettingsPage,
+}
 
 export default function App() {
-  const [form, setForm] = useState(INITIAL_FORM);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const resultRef = useRef(null);
+  const [activePage,   setActivePage]   = useState('application')
+  const [sidebarOpen,  setSidebarOpen]  = useState(true)
 
-  /** Returns a setter for a single form field: onChange('credit_score')('720') */
-  const onChange = (key) => (val) => setForm((f) => ({ ...f, [key]: val }));
+  const handleNavigate = (id) => {
+    setActivePage(id)
+    // On mobile, sidebar auto-closes inside Sidebar's handleNav already,
+    // but also scroll to top on page change
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
-  const handleSubmit = async () => {
-    setError(null);
+  const toggleSidebar = () => setSidebarOpen(v => !v)
+  const closeSidebar  = () => setSidebarOpen(false)
 
-    // Validate — all fields must be real numbers
-    const parsed = {};
-    for (const { key, label } of FORM_FIELDS) {
-      const n = parseFloat(form[key]);
-      if (isNaN(n)) {
-        setError(`"${label}" must be a valid number.`);
-        return;
-      }
-      parsed[key] = n;
-    }
-
-    setLoading(true);
-    setResult(null);
-
-    try {
-      const data = await runEvaluation(parsed);
-      setResult(data);
-      // Scroll results into view on mobile
-      setTimeout(
-        () =>
-          resultRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          }),
-        120
-      );
-    } catch {
-      setError("Backend connection failed. Check your FastAPI endpoint.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Resolve the active page component
+  const PageComponent = PAGES[activePage] ?? NewApplicationPage
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col font-sans">
-      {/* Sticky top navigation bar */}
-      <TopBar />
 
+      {/* ── Top bar ── */}
+      <TopBar
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={toggleSidebar}
+        activePage={activePage}
+      />
+
+      {/* ── Body row: sidebar + main ── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left navigation drawer (hidden on mobile) */}
-        <Sidebar />
 
-        {/* Main scrollable content area */}
-        <main className="flex-1 overflow-y-auto p-6 bg-surface">
-          <div className="max-w-7xl mx-auto">
-            {/* Page heading */}
-            <div className="mb-6">
-              <h2 className="text-[36px] font-bold text-primary tracking-tight leading-tight">
-                Loan Evaluation Dashboard
-              </h2>
-              <p className="text-[16px] text-on-surface-variant mt-1">
-                Precision analytical processing for risk assessment.
-              </p>
-            </div>
+        {/* ── Sidebar ── */}
+        <Sidebar
+          isOpen={sidebarOpen}
+          activePage={activePage}
+          onNavigate={handleNavigate}
+          onClose={closeSidebar}
+        />
 
-            {/* 12-column grid — form left, results right */}
-            <div className="grid grid-cols-12 gap-6">
-              {/* Left column — input form */}
-              <section className="col-span-12 xl:col-span-4">
-                <ApplicantForm
-                  form={form}
-                  onChange={onChange}
-                  onSubmit={handleSubmit}
-                  loading={loading}
-                  error={error}
-                />
-              </section>
-
-              {/* Right column — results dashboard */}
-              <section ref={resultRef} className="col-span-12 xl:col-span-8">
-                <ResultsPanel result={result} loading={loading} />
-              </section>
+        {/* ── Main content ── */}
+        <main
+          className="flex-1 overflow-y-auto bg-surface"
+          /* Push content right when sidebar is open on desktop so it doesn't
+             sit behind the fixed sidebar on mobile */
+          style={{ minWidth: 0 }}
+        >
+          <div className="p-6 max-w-7xl mx-auto">
+            {/* Animate page transitions */}
+            <div
+              key={activePage}
+              style={{ animation: 'fadeUp 0.3s ease both' }}
+            >
+              <PageComponent />
             </div>
           </div>
         </main>
       </div>
+
+      {/* ── Global keyframe (Tailwind doesn't ship fadeUp by default) ── */}
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
+      `}</style>
     </div>
-  );
+  )
 }
