@@ -59,13 +59,13 @@ class LoanApplication(BaseModel):
     credit_score: float
     loan_amount: float
     years_employed: float
-    points: float
+    
 
 # ── 6. Predict endpoint ───────────────────────────────────────────────────────
 @app.post("/predict")
 def predict_loan(application: LoanApplication):
     try:
-        feature_names = ["city", "income", "credit_score", "loan_amount", "years_employed", "points"]
+        feature_names = ["city", "income", "credit_score", "loan_amount", "years_employed"]
 
         # Convert city name → encoded integer using the saved encoder
         city_int = 0
@@ -86,7 +86,6 @@ def predict_loan(application: LoanApplication):
             "credit_score":   int(application.credit_score),
             "loan_amount":    int(application.loan_amount),
             "years_employed": int(application.years_employed),
-            "points":         float(application.points),
         }
 
         df = pd.DataFrame([raw])[feature_names]

@@ -54,8 +54,9 @@ const FIELDS = [
   {
     key: "city",
     label: "City Code (Numeric)",
-    placeholder: "42",
+    placeholder: "e.g. New York",
     prefix: null,
+
     icon: "location_on",
   },
 ];
@@ -100,17 +101,17 @@ function FormField({ field, value, onChange }) {
           </span>
         )}
         <input
-          type="number"
+          type={key === "city" ? "text" : "number"} // Dynamic type
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(key, e.target.value)}
           className={`
-            w-full py-3 pr-4 bg-surface border border-outline-variant rounded-lg
-            text-[14px] font-medium text-on-surface
-            focus:ring-2 focus:ring-primary focus:border-primary
-            outline-none transition-all placeholder:text-outline
-            ${prefix || icon ? "pl-8" : "pl-4"}
-          `}
+    w-full py-3 pr-4 bg-surface border border-outline-variant rounded-lg
+    text-[14px] font-medium text-on-surface
+    focus:ring-2 focus:ring-primary focus:border-primary
+    outline-none transition-all placeholder:text-outline
+    ${prefix || icon ? "pl-8" : "pl-4"}
+  `}
         />
       </div>
     </div>
@@ -414,12 +415,24 @@ export default function NewApplicationPage() {
     // Validate all fields
     const parsed = {};
     for (const { key, label } of FIELDS) {
-      const n = parseFloat(form[key]);
-      if (isNaN(n)) {
-        setError(`"${label}" must be a valid number.`);
-        return;
+      const rawValue = form[key];
+
+      // Check if the field is the city field
+      if (key === "city") {
+        if (!rawValue.trim()) {
+          setError(`"${label}" cannot be empty.`);
+          return;
+        }
+        parsed[key] = rawValue; // Keep as string
+      } else {
+        // Keep numeric logic for all other fields
+        const n = parseFloat(rawValue);
+        if (isNaN(n)) {
+          setError(`"${label}" must be a valid number.`);
+          return;
+        }
+        parsed[key] = n;
       }
-      parsed[key] = n;
     }
 
     setLoading(true);
