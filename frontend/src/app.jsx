@@ -1,90 +1,103 @@
-import { useState } from 'react'
+import { useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 
-import TopBar    from './components/layout/TopBar'
-import Sidebar   from './components/layout/Sidebar'
+import TopBar from "./components/layout/TopBar";
+import Sidebar from "./components/layout/Sidebar";
 
-// Pages
-import PortfolioOverviewPage from './pages/PortfolioOverviewPage'
-import NewApplicationPage    from './pages/NewApplicationPage'
-import RiskAnalyticsPage     from './pages/RiskAnalyticsPage'
-import ComplianceEnginePage  from './pages/ComplianceEnginePage'
-import AuditLogsPage         from './pages/AuditLogsPage'
-import SystemSettingsPage    from './pages/SystemSettingsPage'
-
-/* ── Page registry — maps nav id → component ── */
-const PAGES = {
-  overview:    PortfolioOverviewPage,
-  application: NewApplicationPage,
-  analytics:   RiskAnalyticsPage,
-  compliance:  ComplianceEnginePage,
-  audit:       AuditLogsPage,
-  settings:    SystemSettingsPage,
-}
+import PortfolioOverviewPage from "./pages/PortfolioOverviewPage";
+import NewApplicationPage from "./pages/NewApplicationPage";
+import RiskAnalyticsPage from "./pages/RiskAnalyticsPage";
+import ComplianceEnginePage from "./pages/ComplianceEnginePage";
+import AuditLogsPage from "./pages/AuditLogsPage";
+import SystemSettingsPage from "./pages/SystemSettingsPage";
 
 export default function App() {
-  const [activePage,   setActivePage]   = useState('application')
-  const [sidebarOpen,  setSidebarOpen]  = useState(true)
-
-  const handleNavigate = (id) => {
-    setActivePage(id)
-    // On mobile, sidebar auto-closes inside Sidebar's handleNav already,
-    // but also scroll to top on page change
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const toggleSidebar = () => setSidebarOpen(v => !v)
-  const closeSidebar  = () => setSidebarOpen(false)
-
-  // Resolve the active page component
-  const PageComponent = PAGES[activePage] ?? NewApplicationPage
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col font-sans">
-
-      {/* ── Top bar ── */}
+      {/* Sticky top bar */}
       <TopBar
         sidebarOpen={sidebarOpen}
-        onToggleSidebar={toggleSidebar}
-        activePage={activePage}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
 
-      {/* ── Body row: sidebar + main ── */}
       <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar — reads URL itself via useLocation */}
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        {/* ── Sidebar ── */}
-        <Sidebar
-          isOpen={sidebarOpen}
-          activePage={activePage}
-          onNavigate={handleNavigate}
-          onClose={closeSidebar}
-        />
-
-        {/* ── Main content ── */}
-        <main
-          className="flex-1 overflow-y-auto bg-surface"
-          /* Push content right when sidebar is open on desktop so it doesn't
-             sit behind the fixed sidebar on mobile */
-          style={{ minWidth: 0 }}
-        >
+        {/* Main — expands/contracts based on sidebar width */}
+        <main className="flex-1 min-w-0 overflow-y-auto bg-surface">
           <div className="p-6 max-w-7xl mx-auto">
-            {/* Animate page transitions */}
-            <div
-              key={activePage}
-              style={{ animation: 'fadeUp 0.3s ease both' }}
-            >
-              <PageComponent />
-            </div>
+            <Routes>
+              {/* Default redirect to overview */}
+              <Route path="/" element={<Navigate to="/overview" replace />} />
+              <Route
+                path="/overview"
+                element={
+                  <PageWrapper>
+                    <PortfolioOverviewPage />
+                  </PageWrapper>
+                }
+              />
+              <Route
+                path="/application"
+                element={
+                  <PageWrapper>
+                    <NewApplicationPage />
+                  </PageWrapper>
+                }
+              />
+              <Route
+                path="/analytics"
+                element={
+                  <PageWrapper>
+                    <RiskAnalyticsPage />
+                  </PageWrapper>
+                }
+              />
+              <Route
+                path="/compliance"
+                element={
+                  <PageWrapper>
+                    <ComplianceEnginePage />
+                  </PageWrapper>
+                }
+              />
+              <Route
+                path="/audit"
+                element={
+                  <PageWrapper>
+                    <AuditLogsPage />
+                  </PageWrapper>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <PageWrapper>
+                    <SystemSettingsPage />
+                  </PageWrapper>
+                }
+              />
+              {/* Catch-all */}
+              <Route path="*" element={<Navigate to="/overview" replace />} />
+            </Routes>
           </div>
         </main>
       </div>
 
-      {/* ── Global keyframe (Tailwind doesn't ship fadeUp by default) ── */}
       <style>{`
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0);    }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
-  )
+  );
+}
+
+/* Wraps each page with a fade-up entrance animation */
+function PageWrapper({ children }) {
+  return <div style={{ animation: "fadeUp 0.3s ease both" }}>{children}</div>;
 }

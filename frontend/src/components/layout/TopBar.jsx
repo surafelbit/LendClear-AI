@@ -1,27 +1,18 @@
+import { useLocation } from "react-router-dom";
 import Icon from "../ui/Icon";
 import { NAV_ITEMS } from "../../constants";
 
-/**
- * TopBar — sticky header with:
- *   - Hamburger toggle (controls sidebar open/close)
- *   - Breadcrumb that reflects the current active page
- *   - Search bar, notifications, user avatar
- *
- * Props:
- *   sidebarOpen     — boolean
- *   onToggleSidebar — () => void
- *   activePage      — string (nav item id)
- */
-export default function TopBar({ sidebarOpen, onToggleSidebar, activePage }) {
-  const currentNav = NAV_ITEMS.find((n) => n.id === activePage);
-  const pageLabel = currentNav?.label ?? "Dashboard";
+export default function TopBar({ sidebarOpen, onToggleSidebar }) {
+  const location = useLocation();
+  const current =
+    NAV_ITEMS.find((n) => `/${n.id}` === location.pathname) ?? NAV_ITEMS[0];
 
   return (
     <header
       className="bg-surface-container-lowest border-b border-outline-variant
       flex items-center gap-4 px-4 h-[57px] w-full sticky top-0 z-50 shadow-sm flex-shrink-0"
     >
-      {/* ── Hamburger ── */}
+      {/* Hamburger */}
       <button
         onClick={onToggleSidebar}
         className="w-9 h-9 flex items-center justify-center rounded-lg
@@ -31,7 +22,7 @@ export default function TopBar({ sidebarOpen, onToggleSidebar, activePage }) {
         <Icon name={sidebarOpen ? "menu_open" : "menu"} size={22} />
       </button>
 
-      {/* ── Logo ── */}
+      {/* Logo */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <Icon name="account_balance" size={26} className="text-primary" />
         <h1 className="text-[20px] font-bold text-primary tracking-tight leading-none hidden sm:block">
@@ -39,13 +30,13 @@ export default function TopBar({ sidebarOpen, onToggleSidebar, activePage }) {
         </h1>
       </div>
 
-      {/* ── Breadcrumb ── */}
+      {/* Breadcrumb */}
       <div className="hidden md:flex items-center gap-1.5 text-[13px] text-on-surface-variant ml-2">
         <Icon name="chevron_right" size={16} className="text-outline-variant" />
-        <span className="font-semibold text-on-surface">{pageLabel}</span>
+        <span className="font-semibold text-on-surface">{current.label}</span>
       </div>
 
-      {/* ── Search ── */}
+      {/* Search */}
       <div
         className="hidden lg:flex items-center gap-2 px-4 py-2 ml-4
         bg-surface-container-low rounded-full border border-outline-variant w-64"
@@ -62,15 +53,17 @@ export default function TopBar({ sidebarOpen, onToggleSidebar, activePage }) {
         />
       </div>
 
-      {/* ── Right actions ── */}
+      {/* Right */}
       <div className="flex items-center gap-2 ml-auto">
         <button
           className="w-9 h-9 flex items-center justify-center rounded-full
           hover:bg-surface-container-high transition-colors text-on-surface-variant relative"
         >
           <Icon name="notifications" size={20} />
-          {/* notification dot */}
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full border-2 border-surface-container-lowest" />
+          <span
+            className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full
+            border-2 border-surface-container-lowest"
+          />
         </button>
 
         <div
@@ -78,8 +71,8 @@ export default function TopBar({ sidebarOpen, onToggleSidebar, activePage }) {
           hover:bg-surface-container-high px-2 py-1 rounded-full transition-colors"
         >
           <div
-            className="w-8 h-8 rounded-full bg-primary flex items-center
-            justify-center border-2 border-outline-variant overflow-hidden"
+            className="w-8 h-8 rounded-full bg-primary flex items-center justify-center
+            border-2 border-outline-variant"
           >
             <span className="text-[11px] font-bold text-on-primary">AR</span>
           </div>

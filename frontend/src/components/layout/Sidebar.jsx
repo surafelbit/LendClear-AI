@@ -1,29 +1,32 @@
+import { useNavigate, useLocation } from "react-router-dom";
 import Icon from "../ui/Icon";
 import { NAV_ITEMS } from "../../constants";
 
 /**
- * Sidebar — fully functional navigation drawer.
+ * Sidebar — fully working navigation with react-router-dom.
  *
- * Desktop behaviour:
- *   - isOpen=true  → full 256px panel with labels
- *   - isOpen=false → 68px icon-only rail with tooltips
+ * Desktop:
+ *   isOpen=true  → 256px full panel with labels
+ *   isOpen=false → 68px icon-only rail with hover tooltips
  *
- * Mobile behaviour:
- *   - isOpen=true  → slides in from left as overlay
- *   - isOpen=false → hidden off-screen
- *   - backdrop click calls onClose
+ * Mobile:
+ *   isOpen=true  → slides in as overlay with backdrop
+ *   isOpen=false → hidden off-screen
  *
  * Props:
- *   isOpen     — boolean
- *   activePage — string (matched against NAV_ITEMS id)
- *   onNavigate — (id: string) => void
- *   onClose    — () => void
+ *   isOpen    — boolean
+ *   onClose   — () => void  (called after navigation on mobile, or backdrop click)
  */
-export default function Sidebar({ isOpen, activePage, onNavigate, onClose }) {
+export default function Sidebar({ isOpen, onClose }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const handleNav = (id) => {
-    onNavigate(id);
-    // Auto-close on mobile after navigation
-    onClose();
+    navigate(`/${id}`);
+    // Only close on mobile (screen < lg). On desktop we never auto-close.
+    if (window.innerWidth < 1024) {
+      onClose();
+    }
   };
 
   return (
@@ -56,24 +59,21 @@ export default function Sidebar({ isOpen, activePage, onNavigate, onClose }) {
           }
         `}
       >
-        {/* ── User / workspace block ── */}
+        {/* ── User block ── */}
         <div
           className={`flex items-center border-b border-outline-variant flex-shrink-0
-          transition-all duration-300 overflow-hidden
-          ${isOpen ? "gap-3 p-4" : "justify-center p-3"}`}
+            transition-all duration-300 overflow-hidden
+            ${isOpen ? "gap-3 p-4" : "justify-center p-3"}`}
         >
-          {/* Avatar / logo mark */}
           <div
             className="w-10 h-10 rounded-lg bg-primary flex items-center
             justify-center flex-shrink-0 shadow-sm"
           >
             <Icon name="shield_person" size={20} className="text-on-primary" />
           </div>
-
-          {/* Name + role — hidden when collapsed */}
           <div
             className={`overflow-hidden transition-all duration-300 whitespace-nowrap
-            ${isOpen ? "opacity-100 max-w-xs" : "opacity-0 max-w-0"}`}
+              ${isOpen ? "opacity-100 w-auto" : "opacity-0 w-0"}`}
           >
             <p className="text-[15px] font-semibold text-primary leading-tight">
               Alex Rivers
@@ -84,53 +84,61 @@ export default function Sidebar({ isOpen, activePage, onNavigate, onClose }) {
           </div>
         </div>
 
-        {/* ── Navigation ── */}
+        {/* ── Nav items ── */}
         <nav
           className={`flex flex-col gap-0.5 flex-1 overflow-y-auto overflow-x-hidden py-3
-          ${isOpen ? "px-3" : "px-2"}`}
+            ${isOpen ? "px-3" : "px-2"}`}
         >
           {NAV_ITEMS.map(({ id, icon, label, divider }) => {
-            const active = activePage === id;
+            const active = location.pathname === `/${id}`;
+
             return (
               <div key={id}>
                 {divider && (
                   <div className="h-px bg-outline-variant my-2 mx-1" />
                 )}
 
+                {/* Wrapper for tooltip */}
                 <div className="relative group">
                   <button
                     onClick={() => handleNav(id)}
-                    className={`w-full flex items-center rounded-lg py-2.5 transition-all duration-150 text-left
+                    className={`
+                      w-full flex items-center rounded-lg py-2.5
+                      transition-all duration-150 text-left
                       ${isOpen ? "gap-3 px-3" : "justify-center px-0"}
                       ${
                         active
                           ? "bg-primary text-on-primary shadow-sm"
                           : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
-                      }`}
+                      }
+                    `}
                   >
                     <Icon name={icon} size={20} className="flex-shrink-0" />
-
-                    {/* Label — slides out when collapsed */}
                     <span
                       className={`text-[12px] font-semibold tracking-wider uppercase
-                      whitespace-nowrap overflow-hidden transition-all duration-300
-                      ${isOpen ? "opacity-100 max-w-xs" : "opacity-0 max-w-0"}`}
+                        whitespace-nowrap transition-all duration-300 overflow-hidden
+                        ${
+                          isOpen ? "opacity-100 w-auto ml-0" : "opacity-0 w-0"
+                        }`}
                     >
                       {label}
                     </span>
                   </button>
 
-                  {/* Tooltip — only shows on collapsed desktop rail */}
+                  {/* Tooltip on rail mode */}
                   {!isOpen && (
                     <div
-                      className="hidden lg:block absolute left-full top-1/2 -translate-y-1/2 ml-3
-                      px-2.5 py-1.5 bg-inverse-surface text-inverse-on-surface text-[12px]
-                      font-semibold rounded-lg shadow-lg whitespace-nowrap
+                      className="
+                      hidden lg:block
+                      absolute left-full top-1/2 -translate-y-1/2 ml-3
+                      px-2.5 py-1.5 rounded-lg shadow-lg
+                      bg-inverse-surface text-inverse-on-surface
+                      text-[12px] font-semibold whitespace-nowrap
                       opacity-0 pointer-events-none group-hover:opacity-100
-                      transition-opacity duration-150 z-50"
+                      transition-opacity duration-150 z-50
+                    "
                     >
                       {label}
-                      {/* arrow */}
                       <div
                         className="absolute right-full top-1/2 -translate-y-1/2
                         border-4 border-transparent border-r-inverse-surface"
@@ -143,13 +151,11 @@ export default function Sidebar({ isOpen, activePage, onNavigate, onClose }) {
           })}
         </nav>
 
-        {/* ── Engine status footer ── */}
-        <div
-          className={`border-t border-outline-variant flex-shrink-0 p-3 transition-all duration-300`}
-        >
+        {/* ── Engine status ── */}
+        <div className="border-t border-outline-variant flex-shrink-0 p-3">
           <div
             className={`bg-surface-container-highest rounded-xl transition-all duration-300
-            ${isOpen ? "p-3" : "p-2 flex justify-center"}`}
+              ${isOpen ? "p-3" : "p-2 flex justify-center"}`}
           >
             {isOpen ? (
               <>
@@ -166,13 +172,16 @@ export default function Sidebar({ isOpen, activePage, onNavigate, onClose }) {
             ) : (
               <div className="relative group">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse block" />
-                {/* Tooltip */}
                 <div
-                  className="hidden lg:block absolute left-full top-1/2 -translate-y-1/2 ml-3
-                  px-2.5 py-1.5 bg-inverse-surface text-inverse-on-surface text-[12px]
-                  font-semibold rounded-lg shadow-lg whitespace-nowrap
+                  className="
+                  hidden lg:block
+                  absolute left-full top-1/2 -translate-y-1/2 ml-3
+                  px-2.5 py-1.5 rounded-lg shadow-lg
+                  bg-inverse-surface text-inverse-on-surface
+                  text-[12px] font-semibold whitespace-nowrap
                   opacity-0 pointer-events-none group-hover:opacity-100
-                  transition-opacity duration-150 z-50"
+                  transition-opacity duration-150 z-50
+                "
                 >
                   Gemini-Pro Active
                   <div
