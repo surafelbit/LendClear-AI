@@ -429,10 +429,8 @@ export default function NewApplicationPage() {
       setView("results");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
-      setError(
-        e?.response?.data?.detail ??
-          "Could not reach the backend. Make sure FastAPI is running on port 8000."
-      );
+      // evaluate.js throws a plain Error with a readable message
+      setError(e?.message ?? "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -545,6 +543,23 @@ export default function NewApplicationPage() {
         ══════════════════════════════ */}
         {view === "results" && result && (
           <div className="space-y-5">
+            {/* Mock data notice */}
+            {result._mock && (
+              <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-[13px] text-amber-800">
+                <span className="material-symbols-outlined text-[18px] text-amber-600">
+                  info
+                </span>
+                <span>
+                  <strong>Mock data</strong> — FastAPI not detected on port
+                  8000. Run{" "}
+                  <code className="bg-amber-100 px-1 rounded font-mono text-[12px]">
+                    uvicorn main:app --reload
+                  </code>{" "}
+                  to use real predictions.
+                </span>
+              </div>
+            )}
+
             {/* 1 — Decision banner */}
             <DecisionBanner
               approved={result.approved}

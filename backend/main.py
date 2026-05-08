@@ -1,118 +1,145 @@
 import logging
-from fastapi import FastAPI
-import xgboost as xgb
+import joblib
+import os
 import pandas as pd
 import shap
+import xgboost as xgb
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from google import genai
-from google.genai.errors import APIError
 from pydantic import BaseModel
-import os
-# 1. Initialize FastAPI
+
+# ── 1. App setup ──────────────────────────────────────────────────────────────
 app = FastAPI(title="LendClear AI API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], # The address of your React app
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"], # Allows POST, GET, etc.
-    allow_headers=["*"], # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-# ==========================================
-# 2. DEBUGGING & LOGGING ENGINE SETUP
-# ==========================================
+
+# ── 2. Logging ─────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("lendclear.debug")
-# Set the underlying http transport library (httpx) to show you connection blocks
-logging.getLogger("httpx").setLevel(logging.WARNING) 
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
-# Configure Modern Gemini Client
-GEMINI_KEY = "my api key"
+# ── 3. Gemini client ──────────────────────────────────────────────────────────
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "your_gemini_api_key_here")
 
 try:
-    # Initialize the client context
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-    logger.info("📡 Google GenAI Client wrapper successfully built.")
+    gemini_client = genai.Client(api_key=GEMINI_KEY)
+    logger.info("📡 Gemini Client ready.")
 except Exception as init_err:
-    logger.error(f"❌ Client Initialization Failed: {init_err}")
-    client = None
+    logger.error(f"❌ Gemini init failed: {init_err}")
+    gemini_client = None
 
-# 3. Load the Machine Learning "Brain"
+# ── 4. Load ML model + encoders ───────────────────────────────────────────────
 model = xgb.XGBClassifier()
+encoders = {}
+
 try:
     model.load_model("../ml_research/loan_model_xgb.json")
     explainer = shap.TreeExplainer(model)
-    print("✅ System Ready: XGBoost Brain and Gemini Voice are online.")
+    logger.info("✅ XGBoost model loaded.")
 except Exception as e:
-    print(f"❌ Error loading ML engine: {e}")
+    logger.error(f"❌ Model load failed: {e}")
 
+try:
+    encoders = joblib.load("../ml_research/encoders.pkl")
+    logger.info(f"✅ Encoders loaded: {list(encoders.keys())}")
+except Exception as e:
+    logger.warning(f"⚠️  No encoders file found — city must be sent as an integer: {e}")
+
+# ── 5. Request schema ─────────────────────────────────────────────────────────
 class LoanApplication(BaseModel):
-    city: int
+    city: str           # Accept city as a string name, e.g. "East Jill"
     income: float
     credit_score: float
     loan_amount: float
     years_employed: float
     points: float
 
-# 5. Core API Routing
+# ── 6. Predict endpoint ───────────────────────────────────────────────────────
 @app.post("/predict")
 def predict_loan(application: LoanApplication):
     try:
-        data_dict = application.model_dump()
-        data = pd.DataFrame([data_dict])
-        
-        # --- Step A: The Brain Thinking ---
-        prediction = int(model.predict(data)[0])
-        probability = float(model.predict_proba(data)[0][1])
-        status = "Accepted" if prediction == 1 else "Rejected"
+        feature_names = ["city", "income", "credit_score", "loan_amount", "years_employed", "points"]
 
-        # --- Step B: The Detective Investigating ---
-        shap_values = explainer.shap_values(data)
-        feature_names = data.columns
-        impacts = dict(zip(feature_names, shap_values[0].tolist()))
-        sorted_impacts = sorted(impacts.items(), key=lambda x: abs(x[1]), reverse=True)
-        top_reason = sorted_impacts[0][0].replace("_", " ").title()
-
-        # --- Step C: The Voice Speaking (With Debug Layer) ---
-        prompt = f"Context: Loan {status}. Factor: {top_reason}. Income: {application.income}."
-        
-        ai_message = ""
-        if client:
+        # Convert city name → encoded integer using the saved encoder
+        city_int = 0
+        if "city" in encoders:
             try:
-                # 🔴 DEBUG PRINT: See what you are sending BEFORE it leaves your machine
-                logger.info(f"🚀 Outgoing Prompt to Google: {prompt.strip()}")
-                
-                response = client.models.generate_content(
-                    model='gemini-2.0-flash',
-                    contents=prompt
+                city_int = int(encoders["city"].transform([application.city])[0])
+            except ValueError:
+                # City not seen during training — use 0 and warn
+                logger.warning(f"⚠️  Unknown city '{application.city}', defaulting to 0")
+                city_int = 0
+        else:
+            logger.warning("⚠️  No city encoder found, treating city as 0")
+
+        # Build the dataframe with correct types matching training
+        raw = {
+            "city":           city_int,
+            "income":         int(application.income),
+            "credit_score":   int(application.credit_score),
+            "loan_amount":    int(application.loan_amount),
+            "years_employed": int(application.years_employed),
+            "points":         float(application.points),
+        }
+
+        df = pd.DataFrame([raw])[feature_names]
+        logger.info(f"🔍 Raw input: {raw}")
+        logger.info(f"🔍 DataFrame:\n{df}")
+        logger.info(f"🔍 DataFrame dtypes:\n{df.dtypes}")
+        logger.info(f"🔍 Model feature names: {model.get_booster().feature_names}")
+        # ── END DEBUG ──
+
+        prediction  = int(model.predict(df)[0])
+        logger.info(f"🔍 Input to model:\n{df.to_dict(orient='records')}")
+
+        # ── Prediction ──
+        prediction  = int(model.predict(df)[0])
+        probability = float(model.predict_proba(df)[0][1])
+        status      = "Accepted" if prediction == 1 else "Rejected"
+
+        # ── SHAP explanation ──
+        shap_values  = explainer.shap_values(df)
+        impacts      = dict(zip(feature_names, shap_values[0].tolist()))
+        sorted_impacts = sorted(impacts.items(), key=lambda x: abs(x[1]), reverse=True)
+        top_reason   = sorted_impacts[0][0].replace("_", " ").title()
+
+        logger.info(f"📊 Prediction={status}, Confidence={probability:.2f}, TopReason={top_reason}")
+
+        # ── Gemini voice message ──
+        ai_message = f"Decision based on {top_reason}."
+        if gemini_client:
+            try:
+                prompt = (
+                    f"A loan application for someone with an income of {application.income} "
+                    f"and a credit score of {application.credit_score} was {status}. "
+                    f"The main deciding factor was {top_reason}. "
+                    f"Write a single professional sentence explaining this decision."
+                )
+                response = gemini_client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt,
                 )
                 ai_message = response.text.strip()
-                
-                # 🟢 DEBUG PRINT: Confirm a clean response arrived
-                logger.info("✅ Successful response received from gemini-2.0-flash.")
-                
-            except APIError as api_err:
-                # ⚠️ THE TRAP: Catch exact status codes (429 Quota / 403 Keys / 404 Missing)
-                logger.error("❌ --- GOOGLE API ERROR ENCOUNTERED ---")
-                logger.error(f"Status Code: {api_err.code}")
-                logger.error(f"Error Message: {api_err.message}")
-                logger.error("---------------------------------------")
-                
-                ai_message = f"Decision: {top_reason}. (LLM module returned code {api_err.code})."
-                
-            except Exception as inner_err:
-                logger.error(f"⚠️ Non-API Connectivity issue: {inner_err}")
-                ai_message = f"Decision: {top_reason}. (LLM offline)."
-        else:
-            ai_message = f"Decision: {top_reason}. (Client unconfigured)."
+            except Exception as ai_err:
+                logger.error(f"❌ Gemini error: {ai_err}")
+                ai_message = f"Decision based on {top_reason}."
 
         return {
-            "approved": bool(prediction),
-            "status": status,
-            "confidence": round(probability, 2),
-            "top_reason": top_reason,
+            "approved":        bool(prediction),
+            "status":          status,
+            "confidence":      round(probability, 2),
+            "top_reason":      top_reason,
             "ai_voice_message": ai_message,
-            "raw_data": impacts
+            "raw_data":        impacts,
         }
-        
+
     except Exception as e:
-        return {"error": f"Internal pipeline crash: {str(e)}"}
+        logger.error(f"❌ Pipeline crash: {e}", exc_info=True)
+        return {"error": f"Pipeline crash: {str(e)}"}
