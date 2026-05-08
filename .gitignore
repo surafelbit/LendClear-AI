@@ -7,3 +7,4 @@ venv/
 .venv/
 .DS_Store
 Thumbs.db
+ml_research/loan_model_xgb.json
