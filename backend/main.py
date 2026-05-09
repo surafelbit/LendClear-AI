@@ -8,6 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from pydantic import BaseModel
+from database import engine, Base
+from routers import predict, history
+Base.metadata.create_all(bind=engine)
 
 # ── 1. App setup ──────────────────────────────────────────────────────────────
 app = FastAPI(title="LendClear AI API")
@@ -60,7 +63,8 @@ class LoanApplication(BaseModel):
     loan_amount: float
     years_employed: float
     
-
+app.include_router(predict.router)
+app.include_router(history.router)
 # ── 6. Predict endpoint ───────────────────────────────────────────────────────
 @app.post("/predict")
 def predict_loan(application: LoanApplication):

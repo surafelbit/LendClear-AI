@@ -1,53 +1,109 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from database import get_db
-import models, schemas
-import xgboost as xgb
+import logging
+import joblib
+import os
 import pandas as pd
 import shap
-import os
+import xgboost as xgb
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 from google import genai
+from database import get_db
+import models, schemas
 
+logger = logging.getLogger("lendclear.predict")
 router = APIRouter(prefix="/predict", tags=["Prediction"])
 
-# Initialize ML & AI once
+# ── 1. ML Engine Load ──────────────────────────────────────────────────
 model = xgb.XGBClassifier()
-model.load_model("../ml_research/loan_model_xgb.json")
-explainer = shap.TreeExplainer(model)
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+encoders = {}
+explainer = None
 
+try:
+    # Adjust paths if your script is running from the 'backend' folder
+    model.load_model("../ml_research/loan_model_xgb.json")
+    explainer = shap.TreeExplainer(model)
+    encoders = joblib.load("../ml_research/encoders.pkl")
+    logger.info("✅ ML Engine Online")
+except Exception as e:
+    logger.error(f"❌ ML Load Error: {e}")
+
+# ── 2. Gemini Client ──────────────────────────────────────────────────
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "your_key_here")
+gemini_client = genai.Client(api_key=GEMINI_KEY)
+
+# ── 3. The Controller ─────────────────────────────────────────────────
 @router.post("/")
-def predict_loan(app_data: schemas.LoanApplication, db: Session = Depends(get_db)):
+def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get_db)):
     try:
-        # 1. Prepare Data
-        feature_names = ["city", "income", "credit_score", "loan_amount", "years_employed", "points"]
-        df = pd.DataFrame([app_data.model_dump()])[feature_names]
-        
-        # 2. ML Prediction
+        feature_names = ["city", "income", "credit_score", "loan_amount", "years_employed"]
+
+        # A. Encoding
+        city_int = 0
+        if "city" in encoders:
+            try:
+                city_int = int(encoders["city"].transform([application.city])[0])
+            except:
+                city_int = 0
+
+        # B. Data Prep
+        raw = {
+            "city": city_int,
+            "income": int(application.income),
+            "credit_score": int(application.credit_score),
+            "loan_amount": int(application.loan_amount),
+            "years_employed": int(application.years_employed),
+        }
+        df = pd.DataFrame([raw])[feature_names]
+
+        # C. Prediction
         prediction = int(model.predict(df)[0])
+        probability = float(model.predict_proba(df)[0][1])
         status = "Accepted" if prediction == 1 else "Rejected"
-        
-        # 3. SHAP Interpretation
-        shap_vals = explainer.shap_values(df)
-        impacts = dict(zip(feature_names, shap_vals[0].tolist()))
-        top_reason = sorted(impacts.items(), key=lambda x: abs(x[1]), reverse=True)[0][0]
 
-        # 4. Gemini Voice
-        prompt = f"Explain why a loan with {status} status and top factor {top_reason} was decided. Be brief."
-        response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
-        ai_msg = response.text.strip()
+        # D. SHAP logic
+        shap_values = explainer.shap_values(df)
+        impacts = dict(zip(feature_names, shap_values[0].tolist()))
+        sorted_impacts = sorted(impacts.items(), key=lambda x: abs(x[1]), reverse=True)
+        top_reason_raw = sorted_impacts[0][0]
+        top_reason_display = top_reason_raw.replace("_", " ").title()
 
-        # 5. SAVE TO POSTGRES
+        # E. Gemini AI Voice
+        ai_message = f"Decision based on {top_reason_display}."
+        if gemini_client:
+            prompt = (
+                f"A loan for {application.income} was {status}. "
+                f"Main factor: {top_reason_display}. "
+                "Explain this in one short, professional sentence."
+            )
+            response = gemini_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+            ai_message = response.text.strip()
+
+        # F. DB SAVE (Postgres)
         new_record = models.LoanRecord(
-            **app_data.model_dump(),
+            city=application.city,
+            income=application.income,
+            credit_score=application.credit_score,
+            loan_amount=application.loan_amount,
+            years_employed=application.years_employed,
             status=status,
-            top_reason=top_reason.replace("_", " ").title(),
-            ai_voice_message=ai_msg,
-            raw_shap_data=impacts
+            top_reason=top_reason_display,
+            ai_voice_message=ai_message
         )
         db.add(new_record)
         db.commit()
+        db.refresh(new_record)
 
-        return {"status": status, "reason": top_reason, "ai_message": ai_msg}
+        # G. THE COMPLETE RESPONSE (Matching your exact original keys)
+        return {
+            "id": new_record.id, # New: useful for frontend tracking
+            "approved": bool(prediction),
+            "status": status,
+            "confidence": round(probability, 2),
+            "top_reason": top_reason_display,
+            "ai_voice_message": ai_message,
+            "raw_data": impacts, # This is the 'raw_data' your frontend uses for charts
+        }
+
     except Exception as e:
+        logger.error(f"❌ Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
