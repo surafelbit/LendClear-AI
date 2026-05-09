@@ -12,13 +12,19 @@ class LoanApplication(BaseModel):
     points: float
 
 # What the history list looks like
-class LoanHistoryResponse(BaseModel):
+class LoanHistory(BaseModel):
     id: int
-    timestamp: datetime
+    city: str
     income: float
+    credit_score: float
+    loan_amount: float
+    years_employed: float
     status: str
     top_reason: str
-    ai_voice_message: str
+    ai_voice_message: Optional[str]
+    timestamp: datetime
+    raw_data: Optional[Dict] = None # For the SHAP charts in the history view
 
     class Config:
+        # This allows Pydantic to read data from SQLAlchemy models
         from_attributes = True
