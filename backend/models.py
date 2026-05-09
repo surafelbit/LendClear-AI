@@ -7,7 +7,7 @@ class LoanRecord(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    city = Column(Integer)
+    city = Column(String)
     income = Column(Float)
     credit_score = Column(Integer)
     loan_amount = Column(Float)

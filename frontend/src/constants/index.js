@@ -36,7 +36,7 @@ export const NAV_ITEMS = [
     icon: "history",
     label: "Audit Logs",
     id: "audit",
-    active: false,
+    active: true,
     divider: true,
   },
   { icon: "settings", label: "System Settings", active: false },

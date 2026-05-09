@@ -70,13 +70,29 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
         # E. Gemini AI Voice
         ai_message = f"Decision based on {top_reason_display}."
         if gemini_client:
-            prompt = (
-                f"A loan for {application.income} was {status}. "
-                f"Main factor: {top_reason_display}. "
-                "Explain this in one short, professional sentence."
-            )
-            response = gemini_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-            ai_message = response.text.strip()
+            try:
+                prompt = (
+                    f"A loan application for someone with an income of {application.income} "
+                    f"and a credit score of {application.credit_score} was {status}. "
+                    f"The main deciding factor was {top_reason_display}. "
+                    f"Write a single professional sentence explaining this decision."
+                )
+                response = gemini_client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt,
+                )
+                ai_message = response.text.strip()
+            except Exception as ai_err:
+                logger.error(f"❌ Gemini error: {ai_err}")
+                ai_message = f"Decision based on {top_reason_display}."
+        # if gemini_client:
+        #     prompt = (
+        #         f"A loan for {application.income} was {status}. "
+        #         f"Main factor: {top_reason_display}. "
+        #         "Explain this in one short, professional sentence."
+        #     )
+        #     response = gemini_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        #     ai_message = response.text.strip()
 
         # F. DB SAVE (Postgres)
         new_record = models.LoanRecord(
