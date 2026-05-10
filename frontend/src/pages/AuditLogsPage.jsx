@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
 
 /* ─────────────────────────────────────────────
@@ -69,15 +70,16 @@ function DetailModal({ record, onClose }) {
     ? Math.max(...shapEntries.map(([, v]) => Math.abs(v)))
     : 1;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div
         className="relative bg-surface-container-lowest rounded-2xl border border-outline-variant
-          shadow-2xl w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto"
+          shadow-2xl w-full max-w-xl p-6 max-h-[85vh] overflow-y-auto"
+        style={{ marginTop: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -293,7 +295,8 @@ function DetailModal({ record, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
