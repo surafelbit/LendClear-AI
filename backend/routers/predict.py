@@ -103,7 +103,9 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
             years_employed=application.years_employed,
             status=status,
             top_reason=top_reason_display,
-            ai_voice_message=ai_message
+            ai_voice_message=ai_message,
+            confidence=probability, # This is the 0.XX value
+            raw_shap_data=impacts
         )
         db.add(new_record)
         db.commit()
