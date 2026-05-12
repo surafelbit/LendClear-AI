@@ -16,4 +16,6 @@ class LoanRecord(Base):
     status = Column(String)  # "Accepted" or "Rejected"
     top_reason = Column(String)
     ai_voice_message = Column(String)
+    confidence = Column(Float)
     raw_shap_data = Column(JSON) # Stores all factor impacts
+    timestamp = Column(DateTime, default=datetime.utcnow)
