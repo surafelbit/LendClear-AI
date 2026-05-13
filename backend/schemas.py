@@ -24,6 +24,7 @@ class LoanHistory(BaseModel):
     ai_voice_message: Optional[str]
     timestamp: datetime
     raw_shap_data: Optional[Dict] = None # For the SHAP charts in the history view
+    confidence: Optional[float] = None
 
     class Config:
         # This allows Pydantic to read data from SQLAlchemy models
