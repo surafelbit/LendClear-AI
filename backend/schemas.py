@@ -13,6 +13,7 @@ class LoanApplication(BaseModel):
 
 # What the history list looks like
 class LoanHistory(BaseModel):
+    applicant_name: str
     id: int
     city: str
     income: float
