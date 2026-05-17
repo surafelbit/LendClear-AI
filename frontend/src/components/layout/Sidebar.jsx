@@ -2,21 +2,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Icon from "../ui/Icon";
 import { NAV_ITEMS } from "../../constants";
 
-/**
- * Sidebar — fully working navigation with react-router-dom.
- *
- * Desktop:
- *   isOpen=true  → 256px full panel with labels
- *   isOpen=false → 68px icon-only rail with hover tooltips
- *
- * Mobile:
- *   isOpen=true  → slides in as overlay with backdrop
- *   isOpen=false → hidden off-screen
- *
- * Props:
- *   isOpen    — boolean
- *   onClose   — () => void  (called after navigation on mobile, or backdrop click)
- */
 export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
   const location = useLocation();
