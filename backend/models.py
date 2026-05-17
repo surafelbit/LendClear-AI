@@ -6,6 +6,7 @@ class LoanRecord(Base):
     __tablename__ = "loan_records"
 
     id = Column(Integer, primary_key=True, index=True)
+    applicant_name = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     city = Column(String)
     income = Column(Float)
