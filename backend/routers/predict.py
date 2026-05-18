@@ -138,6 +138,8 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── 5. Bulk Prediction Endpoint (NEW) ────────────────────────────────
+# ── Inside backend/routers/predict.py ──
+
 @router.post("/bulk")
 async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename.endswith('.csv'):
@@ -150,23 +152,25 @@ async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_d
 
         count = 0
         for row in reader:
-            # Cast strings from CSV to numbers
+            # 1. REMOVE 'applicant_name' from this function call!
             res = run_internal_prediction(
-                applicant_name=row.get('applicant_name', 'Unknown User'),
-                city=row.get('city', 'Unknown'),
-                income=float(row['income']),
-                credit_score=float(row['credit_score']),
-                loan_amount=float(row['loan_amount']),
-                years_employed=float(row['years_employed'])
-            )
-
-            # Save each row to DB
-            db_record = models.LoanRecord(
                 city=row.get('city', 'Unknown'),
                 income=float(row['income']),
                 credit_score=float(row['credit_score']),
                 loan_amount=float(row['loan_amount']),
                 years_employed=float(row['years_employed']),
+                internal_risk_point=float(row.get('internal_risk_point', row.get('points', 0)))
+            )
+
+            # 2. Put the name HERE instead (saving it directly to the database log)
+            db_record = models.LoanRecord(
+                applicant_name=row.get('applicant_name', 'Unknown User'), # <-- Kept safe in Postgres
+                city=row.get('city', 'Unknown'),
+                income=float(row['income']),
+                credit_score=float(row['credit_score']),
+                loan_amount=float(row['loan_amount']),
+                years_employed=float(row['years_employed']),
+                points=float(row.get('internal_risk_point', row.get('points', 0))),
                 status=res["status"],
                 top_reason=res["top_reason"],
                 ai_voice_message=res["ai_message"],
@@ -178,7 +182,3 @@ async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_d
 
         db.commit()
         return {"message": f"Successfully processed {count} loans from CSV."}
-        
-    except Exception as e:
-        logger.error(f"❌ Bulk Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Bulk processing failed: {str(e)}")
