@@ -4,6 +4,7 @@ from typing import Dict, Optional
 
 # What the user sends for a prediction
 class LoanApplication(BaseModel):
+    applicant_name: str
     city: str
     income: float
     credit_score: float
