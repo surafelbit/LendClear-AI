@@ -138,8 +138,7 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── 5. Bulk Prediction Endpoint (NEW) ────────────────────────────────
-# ── Inside backend/routers/predict.py ──
-
+# ── BULK PREDICTION ENDPOINT ─────────────────────────────────────────
 @router.post("/bulk")
 async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename.endswith('.csv'):
@@ -152,7 +151,6 @@ async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_d
 
         count = 0
         for row in reader:
-            # 1. REMOVE 'applicant_name' from this function call!
             res = run_internal_prediction(
                 city=row.get('city', 'Unknown'),
                 income=float(row['income']),
@@ -162,9 +160,8 @@ async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_d
                 internal_risk_point=float(row.get('internal_risk_point', row.get('points', 0)))
             )
 
-            # 2. Put the name HERE instead (saving it directly to the database log)
             db_record = models.LoanRecord(
-                applicant_name=row.get('applicant_name', 'Unknown User'), # <-- Kept safe in Postgres
+                applicant_name=row.get('applicant_name', 'Unknown User'),
                 city=row.get('city', 'Unknown'),
                 income=float(row['income']),
                 credit_score=float(row['credit_score']),
@@ -182,3 +179,8 @@ async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_d
 
         db.commit()
         return {"message": f"Successfully processed {count} loans from CSV."}
+
+    except Exception as e:
+        db.rollback()  # Rolls back any uncommitted data safely if a single row errors out
+        logger.error(f"❌ Bulk Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
