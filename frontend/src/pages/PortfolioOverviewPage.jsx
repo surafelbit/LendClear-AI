@@ -61,7 +61,11 @@ const SHAP_LABELS = {
    SKELETON
 ───────────────────────────────────────────── */
 function Skeleton({ className = "" }) {
-  return <div className={`bg-zinc-800 rounded animate-pulse ${className}`} />;
+  return (
+    <div
+      className={`bg-surface-container-high rounded animate-pulse ${className}`}
+    />
+  );
 }
 
 /* ─────────────────────────────────────────────
@@ -69,18 +73,20 @@ function Skeleton({ className = "" }) {
 ───────────────────────────────────────────── */
 function KpiCard({ label, value, sub, loading, children }) {
   return (
-    <div className="border border-zinc-800 rounded-lg p-5 flex flex-col gap-3 bg-zinc-950">
-      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-500">
+    <div className="border border-outline-variant rounded-lg p-5 flex flex-col gap-3 bg-surface">
+      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">
         {label}
       </p>
       {loading ? (
         <Skeleton className="h-9 w-28" />
       ) : (
-        <p className="text-[32px] font-bold text-white leading-none tracking-tight">
+        <p className="text-[32px] font-bold text-primary leading-none tracking-tight">
           {value}
         </p>
       )}
-      {sub && !loading && <p className="text-[12px] text-zinc-500">{sub}</p>}
+      {sub && !loading && (
+        <p className="text-[12px] text-on-surface-variant">{sub}</p>
+      )}
       {children}
     </div>
   );
@@ -96,9 +102,9 @@ function ApprovalBar({ pct, loading }) {
       {loading ? (
         <Skeleton className="h-1.5 w-full" />
       ) : (
-        <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+        <div className="w-full h-1 bg-surface-container-high rounded-full overflow-hidden">
           <div
-            className="h-full bg-white rounded-full transition-all duration-1000"
+            className="h-full bg-primary rounded-full transition-all duration-1000"
             style={{ width: `${Math.min(p, 100)}%` }}
           />
         </div>
@@ -113,7 +119,7 @@ function ApprovalBar({ pct, loading }) {
 function ShapChart({ data }) {
   if (!data || Object.keys(data).length === 0) {
     return (
-      <p className="text-[12px] text-zinc-600 italic">
+      <p className="text-[12px] text-on-surface-variant italic">
         No SHAP data available.
       </p>
     );
@@ -137,19 +143,21 @@ function ShapChart({ data }) {
             className="grid items-center gap-3"
             style={{ gridTemplateColumns: "90px 1fr 52px" }}
           >
-            <span className="text-[11px] text-zinc-500 truncate">{label}</span>
+            <span className="text-[11px] text-on-surface-variant truncate">
+              {label}
+            </span>
 
             {/* Diverging track */}
             <div className="relative h-3 flex items-center">
-              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-zinc-700 z-10" />
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-surface-container-high z-10" />
               {isPos ? (
                 <div
-                  className="absolute h-2 bg-white rounded-r-sm"
+                  className="absolute h-2 bg-primary rounded-r-sm"
                   style={{ left: "50%", width: `${barW}%` }}
                 />
               ) : (
                 <div
-                  className="absolute h-2 bg-zinc-400 rounded-l-sm"
+                  className="absolute h-2 bg-outline rounded-l-sm"
                   style={{ right: `${50 - barW}%`, width: `${barW}%` }}
                 />
               )}
@@ -157,7 +165,7 @@ function ShapChart({ data }) {
 
             <span
               className={`text-[11px] font-mono font-bold text-right ${
-                isPos ? "text-white" : "text-zinc-400"
+                isPos ? "text-primary" : "text-on-surface-variant"
               }`}
             >
               {isPos ? "+" : ""}
@@ -168,16 +176,16 @@ function ShapChart({ data }) {
       })}
 
       {/* Legend */}
-      <div className="flex items-center gap-5 pt-2 border-t border-zinc-800 mt-1">
+      <div className="flex items-center gap-5 pt-2 border-t border-outline-variant mt-1">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-1.5 bg-white rounded-sm" />
-          <span className="text-[10px] text-zinc-600 uppercase tracking-wider">
+          <div className="w-3 h-1.5 bg-primary rounded-sm" />
+          <span className="text-[10px] text-on-surface-variant uppercase tracking-wider">
             Positive
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-1.5 bg-zinc-400 rounded-sm" />
-          <span className="text-[10px] text-zinc-600 uppercase tracking-wider">
+          <div className="w-3 h-1.5 bg-outline rounded-sm" />
+          <span className="text-[10px] text-on-surface-variant uppercase tracking-wider">
             Negative
           </span>
         </div>
@@ -194,27 +202,27 @@ function ExpandedTray({ record }) {
 
   return (
     <tr>
-      <td colSpan={7} className="p-0 border-b border-zinc-800">
+      <td colSpan={7} className="p-0 border-b border-outline-variant">
         <div
-          className="bg-zinc-900 border-t border-zinc-800 px-6 py-5"
+          className="bg-surface-container-low border-t border-outline-variant px-6 py-5"
           style={{ animation: "expandDown 0.22s ease both" }}
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* AI Explanation */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-600 mb-3 flex items-center gap-2">
-                <span className="inline-block w-3 h-px bg-zinc-600" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-3 flex items-center gap-2">
+                <span className="inline-block w-3 h-px bg-outline-variant" />
                 AI Evaluation Statement
               </p>
               {record.ai_voice_message ? (
                 <blockquote
-                  className="text-[13px] text-zinc-300 italic leading-relaxed
-                  border-l-2 border-zinc-600 pl-4"
+                  className="text-[13px] text-on-surface italic leading-relaxed
+                  border-l-2 border-outline pl-4"
                 >
                   "{record.ai_voice_message}"
                 </blockquote>
               ) : (
-                <p className="text-[12px] text-zinc-600 italic">
+                <p className="text-[12px] text-on-surface-variant italic">
                   No AI message recorded.
                 </p>
               )}
@@ -231,10 +239,10 @@ function ExpandedTray({ record }) {
                   { label: "Top Factor", val: record.top_reason ?? "—" },
                 ].map(({ label, val }) => (
                   <div key={label}>
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">
                       {label}
                     </p>
-                    <p className="text-[12px] font-semibold text-zinc-300 mt-0.5">
+                    <p className="text-[12px] font-semibold text-on-surface mt-0.5">
                       {val}
                     </p>
                   </div>
@@ -244,8 +252,8 @@ function ExpandedTray({ record }) {
 
             {/* SHAP chart */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-600 mb-3 flex items-center gap-2">
-                <span className="inline-block w-3 h-px bg-zinc-600" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-3 flex items-center gap-2">
+                <span className="inline-block w-3 h-px bg-outline-variant" />
                 Risk Factor Attribution
               </p>
               <ShapChart data={shapSrc} />
@@ -268,13 +276,13 @@ function StatusBadge({ status }) {
       uppercase tracking-wider border
       ${
         accepted
-          ? "border-zinc-600 text-zinc-200 bg-transparent"
-          : "border-zinc-700 text-zinc-400 bg-transparent"
+          ? "border-outline text-on-surface bg-transparent"
+          : "border-outline-variant text-on-surface-variant bg-transparent"
       }`}
     >
       <span
         className={`w-1.5 h-1.5 rounded-full ${
-          accepted ? "bg-white" : "bg-zinc-500"
+          accepted ? "bg-primary" : "bg-outline"
         }`}
       />
       {status ?? "—"}
@@ -389,30 +397,30 @@ export default function PortfolioOverviewPage() {
       `}</style>
 
       <div
-        className="min-h-screen bg-zinc-950 text-white"
-        style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+        className="min-h-screen bg-surface text-on-surface"
+        style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
       >
         <div className="max-w-7xl mx-auto px-0 py-0 space-y-0">
           {/* ── PAGE HEADER ── */}
           <div
-            className="border-b border-zinc-800 pb-5 mb-8"
+            className="border-b border-outline-variant pb-5 mb-8"
             style={{ animation: "fadeUp 0.35s ease both" }}
           >
             <div className="flex items-end justify-between flex-wrap gap-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 mb-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-1">
                   LendClear AI · Portfolio
                 </p>
-                <h1 className="text-[32px] font-bold text-white tracking-tight leading-none">
+                <h1 className="text-[32px] font-bold text-primary tracking-tight leading-none">
                   Risk Overview
                 </h1>
-                <p className="text-[14px] text-zinc-500 mt-2">
+                <p className="text-[14px] text-on-surface-variant mt-2">
                   Live analytics and eligibility decision feed.
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
                   Live
                 </span>
               </div>
@@ -421,13 +429,13 @@ export default function PortfolioOverviewPage() {
 
           {/* ── KPI CARDS ── */}
           {statsError ? (
-            <div className="border border-zinc-800 rounded-lg px-5 py-4 flex items-center gap-3 mb-8 bg-zinc-900">
-              <span className="text-zinc-500 text-[20px]">⚠</span>
+            <div className="border border-outline-variant rounded-lg px-5 py-4 flex items-center gap-3 mb-8 bg-surface-container-low">
+              <span className="text-on-surface-variant text-[20px]">⚠</span>
               <div>
-                <p className="text-[13px] font-semibold text-zinc-300">
+                <p className="text-[13px] font-semibold text-on-surface">
                   Stats unavailable
                 </p>
-                <p className="text-[11px] text-zinc-600 mt-0.5">
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
                   {statsError} · Check{" "}
                   <code className="font-mono">GET /history/summary/stats</code>
                 </p>
@@ -472,9 +480,9 @@ export default function PortfolioOverviewPage() {
                 loading={statsLoading}
               >
                 {!statsLoading && stats && (
-                  <div className="w-full h-px bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="w-full h-px bg-surface-container-high rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-zinc-400 rounded-full"
+                      className="h-full bg-outline rounded-full"
                       style={{
                         width: `${Math.min(
                           ((stats.average_credit_score - 300) / 550) * 100,
@@ -490,17 +498,17 @@ export default function PortfolioOverviewPage() {
 
           {/* ── HISTORY TABLE ── */}
           <div
-            className="border border-zinc-800 rounded-lg overflow-hidden"
+            className="border border-outline-variant rounded-lg overflow-hidden"
             style={{ animation: "fadeUp 0.4s ease both 0.1s" }}
           >
             {/* Table toolbar */}
-            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-zinc-800 flex-wrap">
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-outline-variant flex-wrap">
               <div className="flex items-center gap-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-zinc-500">
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">
                   Loan Records
                 </p>
                 {!histLoading && (
-                  <span className="text-[10px] font-mono text-zinc-700 border border-zinc-800 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-mono text-on-surface-variant border border-outline-variant px-1.5 py-0.5 rounded">
                     {filtered.length}
                   </span>
                 )}
@@ -513,14 +521,14 @@ export default function PortfolioOverviewPage() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search name, city…"
-                    className="bg-zinc-900 border border-zinc-800 rounded text-[12px] text-zinc-300
-                      placeholder:text-zinc-700 px-3 py-2 pr-8 outline-none w-44
-                      focus:border-zinc-600 transition-colors"
+                    className="bg-surface-container-low border border-outline-variant rounded text-[12px] text-on-surface
+                      placeholder:text-on-surface-variant px-3 py-2 pr-8 outline-none w-44
+                      focus:border-outline transition-colors"
                   />
                   {search && (
                     <button
                       onClick={() => setSearch("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface-variant"
                     >
                       ✕
                     </button>
@@ -528,7 +536,7 @@ export default function PortfolioOverviewPage() {
                 </div>
 
                 {/* Status filter */}
-                <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded p-0.5">
+                <div className="flex items-center gap-1 bg-surface-container-low border border-outline-variant rounded p-0.5">
                   {["All", "Accepted", "Rejected"].map((f) => (
                     <button
                       key={f}
@@ -536,8 +544,8 @@ export default function PortfolioOverviewPage() {
                       className={`px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wide transition-all
                         ${
                           filterStatus === f
-                            ? "bg-white text-zinc-950"
-                            : "text-zinc-600 hover:text-zinc-300"
+                            ? "bg-primary text-on-primary"
+                            : "text-on-surface-variant hover:text-on-surface"
                         }`}
                     >
                       {f}
@@ -550,7 +558,7 @@ export default function PortfolioOverviewPage() {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[13px]">
                 <thead>
-                  <tr className="border-b border-zinc-800">
+                  <tr className="border-b border-outline-variant">
                     {[
                       "",
                       "Applicant",
@@ -563,7 +571,7 @@ export default function PortfolioOverviewPage() {
                       <th
                         key={i}
                         className="px-5 py-3 text-left text-[10px] font-bold uppercase
-                        tracking-[0.15em] text-zinc-600 whitespace-nowrap"
+                        tracking-[0.15em] text-on-surface-variant whitespace-nowrap"
                       >
                         {h}
                       </th>
@@ -575,7 +583,7 @@ export default function PortfolioOverviewPage() {
                   {/* Loading skeletons */}
                   {histLoading &&
                     Array.from({ length: 6 }).map((_, i) => (
-                      <tr key={i} className="border-b border-zinc-900">
+                      <tr key={i} className="border-b border-outline-variant">
                         {Array.from({ length: 7 }).map((_, j) => (
                           <td key={j} className="px-5 py-4">
                             <Skeleton
@@ -592,7 +600,7 @@ export default function PortfolioOverviewPage() {
                     <tr>
                       <td
                         colSpan={7}
-                        className="px-5 py-10 text-center text-zinc-600 text-[13px]"
+                        className="px-5 py-10 text-center text-on-surface-variant text-[13px]"
                       >
                         Failed to load history · {histError}
                       </td>
@@ -603,7 +611,7 @@ export default function PortfolioOverviewPage() {
                   {!histLoading && !histError && filtered.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-5 py-12 text-center">
-                        <p className="text-zinc-600 text-[13px]">
+                        <p className="text-on-surface-variant text-[13px]">
                           {search || filterStatus !== "All"
                             ? "No records match your filters."
                             : "No applications yet."}
@@ -625,8 +633,12 @@ export default function PortfolioOverviewPage() {
                           <tr
                             key={r.id}
                             onClick={() => toggleRow(r.id)}
-                            className={`border-b border-zinc-900 cursor-pointer group transition-colors
-                            ${isOpen ? "bg-zinc-900" : "hover:bg-zinc-900/60"}`}
+                            className={`border-b border-outline-variant cursor-pointer group transition-colors
+                            ${
+                              isOpen
+                                ? "bg-surface-container-low"
+                                : "hover:bg-surface-container-low"
+                            }`}
                             style={{
                               animation: `fadeUp 0.35s ease both ${idx * 40}ms`,
                             }}
@@ -634,8 +646,8 @@ export default function PortfolioOverviewPage() {
                             {/* Expand chevron */}
                             <td className="px-5 py-4 w-10">
                               <div
-                                className={`text-zinc-600 group-hover:text-zinc-400 transition-colors
-                              ${isOpen ? "text-zinc-400" : ""}`}
+                                className={`text-on-surface-variant group-hover:text-on-surface-variant transition-colors
+                              ${isOpen ? "text-on-surface-variant" : ""}`}
                               >
                                 <Chevron open={isOpen} />
                               </div>
@@ -645,16 +657,16 @@ export default function PortfolioOverviewPage() {
                             <td className="px-5 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-3">
                                 <div
-                                  className="w-7 h-7 rounded-sm bg-zinc-800 border border-zinc-700
-                                flex items-center justify-center text-[10px] font-bold text-zinc-400 flex-shrink-0"
+                                  className="w-7 h-7 rounded-sm bg-surface-container-high border border-outline-variant
+                                flex items-center justify-center text-[10px] font-bold text-on-surface-variant flex-shrink-0"
                                 >
                                   {initials}
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-white text-[13px] leading-tight">
+                                  <p className="font-semibold text-primary text-[13px] leading-tight">
                                     {fmtName(r.applicant_name)}
                                   </p>
-                                  <p className="text-[10px] font-mono text-zinc-600">
+                                  <p className="text-[10px] font-mono text-on-surface-variant">
                                     APP-{String(r.id).padStart(4, "0")}
                                   </p>
                                 </div>
@@ -663,14 +675,14 @@ export default function PortfolioOverviewPage() {
 
                             {/* Location */}
                             <td className="px-5 py-4">
-                              <span className="text-zinc-400 text-[13px]">
+                              <span className="text-on-surface-variant text-[13px]">
                                 {r.city ?? "—"}
                               </span>
                             </td>
 
                             {/* Income */}
                             <td className="px-5 py-4 whitespace-nowrap">
-                              <span className="font-mono text-zinc-300">
+                              <span className="font-mono text-on-surface">
                                 {fmt$(r.income)}
                               </span>
                             </td>
@@ -678,14 +690,14 @@ export default function PortfolioOverviewPage() {
                             {/* Credit score */}
                             <td className="px-5 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-white">
+                                <span className="font-mono font-bold text-primary">
                                   {fmtScore(r.credit_score)}
                                 </span>
                                 {/* Mini score bar */}
-                                <div className="w-12 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                                <div className="w-12 h-1 bg-surface-container-high rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
-                                      accepted ? "bg-white" : "bg-zinc-500"
+                                      accepted ? "bg-primary" : "bg-outline"
                                     }`}
                                     style={{
                                       width: `${Math.min(
@@ -700,7 +712,7 @@ export default function PortfolioOverviewPage() {
 
                             {/* Loan amount */}
                             <td className="px-5 py-4 whitespace-nowrap">
-                              <span className="font-mono text-zinc-300">
+                              <span className="font-mono text-on-surface">
                                 {fmt$(r.loan_amount)}
                               </span>
                             </td>
@@ -710,7 +722,7 @@ export default function PortfolioOverviewPage() {
                               <div className="flex items-center justify-between gap-3">
                                 <StatusBadge status={r.status} />
                                 {confPct != null && (
-                                  <span className="text-[10px] font-mono text-zinc-600">
+                                  <span className="text-[10px] font-mono text-on-surface-variant">
                                     {confPct}%
                                   </span>
                                 )}
@@ -731,12 +743,12 @@ export default function PortfolioOverviewPage() {
 
             {/* Table footer */}
             {!histLoading && filtered.length > 0 && (
-              <div className="px-5 py-3 border-t border-zinc-800 flex items-center justify-between">
-                <p className="text-[11px] text-zinc-700 font-mono">
+              <div className="px-5 py-3 border-t border-outline-variant flex items-center justify-between">
+                <p className="text-[11px] text-on-surface-variant font-mono">
                   {filtered.length} record{filtered.length !== 1 ? "s" : ""}
                   {search || filterStatus !== "All" ? " · filtered" : ""}
                 </p>
-                <p className="text-[11px] text-zinc-700 font-mono">
+                <p className="text-[11px] text-on-surface-variant font-mono">
                   Click any row to expand AI analysis ↕
                 </p>
               </div>
