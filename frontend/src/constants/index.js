@@ -29,7 +29,12 @@ export const NAV_ITEMS = [
     label: "Risk Analytics",
     id: "overview",
   },
-  { icon: "verified_user", label: "Compliance Engine", active: true },
+  {
+    icon: "verified_user",
+    label: "Compliance Engine",
+    active: true,
+    id: "compliance",
+  },
   {
     icon: "history",
     label: "Audit Logs",
