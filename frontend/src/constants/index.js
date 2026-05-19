@@ -21,7 +21,6 @@ export const NAV_ITEMS = [
   {
     icon: "add_circle",
     label: "New Application",
-    active: true,
     id: "application",
     divider: true,
   },
@@ -29,15 +28,16 @@ export const NAV_ITEMS = [
     icon: "analytics",
     label: "Risk Analytics",
     id: "overview",
-    active: true,
   },
   { icon: "verified_user", label: "Compliance Engine", active: true },
   {
     icon: "history",
     label: "Audit Logs",
     id: "audit",
-    active: true,
     divider: true,
   },
-  { icon: "settings", label: "System Settings", active: true },
+  {
+    icon: "settings",
+    label: "System Settings",
+  },
 ];
