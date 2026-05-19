@@ -17,7 +17,7 @@ export const FORM_FIELDS = [
 ];
 
 export const NAV_ITEMS = [
-  { icon: "dashboard", label: "Portfolio Overview", active: false },
+  { icon: "dashboard", label: "Portfolio Overview", active: true },
   {
     icon: "add_circle",
     label: "New Application",
@@ -28,10 +28,10 @@ export const NAV_ITEMS = [
   {
     icon: "analytics",
     label: "Risk Analytics",
-    id: "application",
-    active: false,
+    id: "overview",
+    active: true,
   },
-  { icon: "verified_user", label: "Compliance Engine", active: false },
+  { icon: "verified_user", label: "Compliance Engine", active: true },
   {
     icon: "history",
     label: "Audit Logs",
@@ -39,5 +39,5 @@ export const NAV_ITEMS = [
     active: true,
     divider: true,
   },
-  { icon: "settings", label: "System Settings", active: false },
+  { icon: "settings", label: "System Settings", active: true },
 ];
