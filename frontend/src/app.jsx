@@ -48,7 +48,6 @@ export default function App() {
   );
 }
 
-/* Animated route switcher — re-mounts on pathname change for fresh animation */
 function AnimatedRoutes() {
   const location = useLocation();
   return (
