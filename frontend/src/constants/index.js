@@ -27,7 +27,7 @@ export const NAV_ITEMS = [
   {
     icon: "analytics",
     label: "Risk Analytics",
-    id: "overview",
+    id: "analytics",
   },
   {
     icon: "verified_user",
