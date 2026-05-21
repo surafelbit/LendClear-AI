@@ -11,16 +11,13 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
+import { Animate } from "../components/ui/Animate";
 
-/* ─────────────────────────────────────────────
-   API
-───────────────────────────────────────────── */
+/* ─── API ─── */
 const STATS_URL = "http://localhost:8000/history/summary/stats";
 const HISTORY_URL = "http://localhost:8000/history/";
 
-/* ─────────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────────── */
+/* ─── FORMATTERS ─── */
 const fmt$ = (n) =>
   n == null
     ? "—"
@@ -29,256 +26,102 @@ const fmt$ = (n) =>
         currency: "USD",
         maximumFractionDigits: 0,
       }).format(n);
-
 const fmtPct = (n) => (n == null ? "—" : `${parseFloat(n).toFixed(1)}%`);
-
 const fmtScore = (n) => (n == null ? "—" : Math.round(n).toLocaleString());
-
-const fmtTS = (ts) => {
-  if (!ts) return "—";
-  return new Date(ts).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
-
-const normalizeConf = (raw) => {
+const fmtTS = (ts) =>
+  !ts
+    ? "—"
+    : new Date(ts).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+const normConf = (raw) => {
   const n = parseFloat(raw);
-  if (isNaN(n)) return null;
-  return n > 1 ? Math.round(n) : Math.round(n * 100);
+  return isNaN(n) ? null : Math.round(n > 1 ? n : n * 100);
 };
-
-const fmtInitials = (name) => {
+const initials = (name) => {
   if (!name?.trim()) return "??";
   const p = name.trim().split(" ");
   return p.length >= 2
     ? (p[0][0] + p[p.length - 1][0]).toUpperCase()
     : name.substring(0, 2).toUpperCase();
 };
-
-// snake_case → Title Case
 const toTitle = (key) =>
   key
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 
-/* ─────────────────────────────────────────────
-   SKELETON PULSE
-───────────────────────────────────────────── */
-function Sk({ w = "w-24", h = "h-4", className = "" }) {
+/* ─── SKELETON ─── */
+function Sk({ className = "" }) {
   return (
     <div
-      className={`bg-zinc-800 rounded animate-pulse ${w} ${h} ${className}`}
+      className={`bg-surface-container-high rounded animate-pulse ${className}`}
     />
   );
 }
 
-/* ─────────────────────────────────────────────
-   CUSTOM RECHARTS TOOLTIP
-───────────────────────────────────────────── */
-function ShapTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
+/* ─── STAT CARD ─── */
+function StatCard({ label, value, sub, loading, badge, children, delay = 0 }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 shadow-xl">
-      <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">
-        {d.label}
-      </p>
-      <p
-        className={`text-[14px] font-bold font-mono ${
-          d.value >= 0 ? "text-white" : "text-zinc-400"
-        }`}
-      >
-        {d.value >= 0 ? "+" : ""}
-        {d.value.toFixed(4)}
-      </p>
-      <p className="text-[10px] text-zinc-600 mt-0.5">
-        {d.value >= 0
-          ? "↑ Pushed toward approval"
-          : "↓ Pulled toward rejection"}
-      </p>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   SHAP FORCE PLOT  (Recharts horizontal diverging bar)
-───────────────────────────────────────────── */
-function ShapForcePlot({ rawShapData }) {
-  if (!rawShapData || Object.keys(rawShapData).length === 0) {
-    return (
-      <div className="flex items-center justify-center h-24 border border-zinc-800 rounded-lg">
-        <p className="text-[12px] text-zinc-600 italic">
-          No SHAP data available
-        </p>
-      </div>
-    );
-  }
-
-  // Build chart data sorted by absolute value descending
-  const chartData = Object.entries(rawShapData)
-    .map(([key, value]) => ({
-      label: toTitle(key),
-      key,
-      value: parseFloat(value),
-    }))
-    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
-
-  const maxAbs = Math.max(...chartData.map((d) => Math.abs(d.value)), 0.01);
-  const domain = [-maxAbs * 1.2, maxAbs * 1.2];
-
-  return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-zinc-500">
-            SHAP Impact Analysis
+    <Animate variant="fadeUp" delay={delay}>
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm flex flex-col gap-3 h-full">
+        <div className="flex items-start justify-between">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+            {label}
           </p>
-          <p className="text-[10px] text-zinc-700 mt-0.5">
-            Force plot — bars show each feature's contribution to the decision
+          {badge && (
+            <span className="text-[11px] font-bold text-on-tertiary-container">
+              {badge}
+            </span>
+          )}
+        </div>
+        {loading ? (
+          <Sk className="h-9 w-28" />
+        ) : (
+          <p className="text-[34px] font-bold text-primary tracking-tight leading-none">
+            {value}
           </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <div className="w-6 h-2 bg-white rounded-sm" />
-            <span className="text-[9px] text-zinc-600 uppercase tracking-wider font-bold">
-              Toward Approval
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-6 h-2 bg-zinc-600 border border-zinc-500 rounded-sm" />
-            <span className="text-[9px] text-zinc-600 uppercase tracking-wider font-bold">
-              Toward Rejection
-            </span>
-          </div>
-        </div>
+        )}
+        {sub && !loading && (
+          <p className="text-[11px] text-on-surface-variant">{sub}</p>
+        )}
+        {children}
       </div>
-
-      {/* Recharts horizontal bar chart */}
-      <ResponsiveContainer width="100%" height={chartData.length * 38 + 40}>
-        <BarChart
-          layout="vertical"
-          data={chartData}
-          margin={{ top: 0, right: 48, left: 8, bottom: 0 }}
-          barSize={14}
-        >
-          <CartesianGrid
-            horizontal={false}
-            vertical={true}
-            strokeDasharray="3 3"
-            stroke="#27272a"
-          />
-
-          <XAxis
-            type="number"
-            domain={domain}
-            tickCount={7}
-            tick={{ fill: "#52525b", fontSize: 10, fontFamily: "monospace" }}
-            axisLine={{ stroke: "#3f3f46" }}
-            tickLine={{ stroke: "#3f3f46" }}
-            tickFormatter={(v) =>
-              v === 0 ? "0" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}`
-            }
-          />
-
-          <YAxis
-            type="category"
-            dataKey="label"
-            width={100}
-            tick={{ fill: "#a1a1aa", fontSize: 11, fontFamily: "system-ui" }}
-            axisLine={false}
-            tickLine={false}
-          />
-
-          <Tooltip
-            content={<ShapTooltip />}
-            cursor={{ fill: "rgba(255,255,255,0.03)" }}
-          />
-
-          {/* Zero reference line */}
-          <ReferenceLine
-            x={0}
-            stroke="#52525b"
-            strokeWidth={1.5}
-            strokeDasharray="0"
-          />
-
-          <Bar dataKey="value" radius={[0, 3, 3, 0]}>
-            {chartData.map((entry, i) => (
-              <Cell
-                key={`cell-${i}`}
-                fill={entry.value >= 0 ? "#ffffff" : "#52525b"}
-                stroke={entry.value >= 0 ? "transparent" : "#71717a"}
-                strokeWidth={entry.value < 0 ? 1 : 0}
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+    </Animate>
   );
 }
 
-/* ─────────────────────────────────────────────
-   KPI CARD
-───────────────────────────────────────────── */
-function KpiCard({ label, value, sub, loading, children }) {
-  return (
-    <div
-      className="border border-zinc-800 rounded-lg p-5 flex flex-col gap-3 bg-zinc-950"
-      style={{ animation: "fadeUp 0.4s ease both" }}
-    >
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-600">
-        {label}
-      </p>
-      {loading ? (
-        <Sk w="w-32" h="h-9" />
-      ) : (
-        <p className="text-[34px] font-bold text-white leading-none tracking-tight">
-          {value}
-        </p>
-      )}
-      {sub && !loading && <p className="text-[11px] text-zinc-600">{sub}</p>}
-      {children}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   APPROVAL PROGRESS BAR
-───────────────────────────────────────────── */
+/* ─── APPROVAL BAR ─── */
 function ApprovalBar({ pct, loading }) {
   const p = Math.min(parseFloat(pct) || 0, 100);
-  if (loading) return <Sk w="w-full" h="h-1" />;
+  if (loading) return <Sk className="h-1.5 w-full" />;
   return (
-    <div className="w-full h-px bg-zinc-800 rounded-full overflow-hidden mt-1">
+    <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
       <div
-        className="h-full bg-white rounded-full transition-all duration-1000 ease-out"
+        className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
         style={{ width: `${p}%` }}
       />
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   STATUS BADGE  (outlined monochrome)
-───────────────────────────────────────────── */
+/* ─── STATUS BADGE ─── */
 function StatusBadge({ status }) {
   const ok = status === "Accepted";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px]
-      font-bold uppercase tracking-wider border
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold
       ${
-        ok ? "border-zinc-500 text-zinc-200" : "border-zinc-700 text-zinc-500"
+        ok
+          ? "bg-emerald-100 text-emerald-800"
+          : "bg-error-container text-on-error-container"
       }`}
     >
       <span
         className={`w-1.5 h-1.5 rounded-full ${
-          ok ? "bg-white" : "bg-zinc-600"
+          ok ? "bg-emerald-500" : "bg-error"
         }`}
       />
       {status ?? "—"}
@@ -286,9 +129,7 @@ function StatusBadge({ status }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   CHEVRON SVG
-───────────────────────────────────────────── */
+/* ─── CHEVRON ─── */
 function Chevron({ open }) {
   return (
     <svg
@@ -300,7 +141,7 @@ function Chevron({ open }) {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`transition-transform duration-250 ${
+      className={`transition-transform duration-200 ${
         open ? "rotate-180" : ""
       }`}
     >
@@ -309,21 +150,153 @@ function Chevron({ open }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   EXPANDED DETAIL TRAY
-───────────────────────────────────────────── */
+/* ─── RECHARTS CUSTOM TOOLTIP ─── */
+function ShapTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 shadow-lg">
+      <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+        {d.label}
+      </p>
+      <p
+        className={`text-[14px] font-bold font-mono ${
+          d.value >= 0 ? "text-emerald-600" : "text-error"
+        }`}
+      >
+        {d.value >= 0 ? "+" : ""}
+        {d.value.toFixed(4)}
+      </p>
+      <p className="text-[10px] text-on-surface-variant mt-0.5">
+        {d.value >= 0
+          ? "↑ Pushed toward approval"
+          : "↓ Pulled toward rejection"}
+      </p>
+    </div>
+  );
+}
+
+/* ─── SHAP RECHARTS FORCE PLOT ─── */
+function ShapForcePlot({ rawShapData }) {
+  if (!rawShapData || Object.keys(rawShapData).length === 0) {
+    return (
+      <div className="flex items-center justify-center h-20 border border-outline-variant rounded-lg">
+        <p className="text-[12px] text-on-surface-variant italic">
+          No SHAP data available
+        </p>
+      </div>
+    );
+  }
+
+  const chartData = Object.entries(rawShapData)
+    .map(([key, value]) => ({
+      label: toTitle(key),
+      key,
+      value: parseFloat(value),
+    }))
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+
+  const maxAbs = Math.max(...chartData.map((d) => Math.abs(d.value)), 0.01);
+  const domain = [-maxAbs * 1.25, maxAbs * 1.25];
+  const height = chartData.length * 42 + 50;
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <p className="text-[13px] font-semibold text-on-surface">
+            Risk Factor Attribution
+          </p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mt-0.5">
+            SHAP Impact Value Analysis
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-2 rounded-sm bg-emerald-500" />
+            <span className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant">
+              Toward Approval
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-2 rounded-sm bg-error" />
+            <span className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant">
+              Toward Rejection
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            layout="vertical"
+            data={chartData}
+            margin={{ top: 4, right: 52, left: 8, bottom: 4 }}
+            barSize={13}
+          >
+            <CartesianGrid
+              horizontal={false}
+              vertical
+              strokeDasharray="3 3"
+              stroke="#c6c6cd"
+              opacity={0.4}
+            />
+            <XAxis
+              type="number"
+              domain={domain}
+              tickCount={7}
+              tick={{ fill: "#45464d", fontSize: 10, fontFamily: "monospace" }}
+              axisLine={{ stroke: "#c6c6cd" }}
+              tickLine={{ stroke: "#c6c6cd" }}
+              tickFormatter={(v) =>
+                v === 0 ? "0.00" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}`
+              }
+            />
+            <YAxis
+              type="category"
+              dataKey="label"
+              width={110}
+              tick={{ fill: "#45464d", fontSize: 11, fontFamily: "system-ui" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              content={<ShapTooltip />}
+              cursor={{ fill: "rgba(0,0,0,0.04)" }}
+            />
+            <ReferenceLine x={0} stroke="#76777d" strokeWidth={1.5} />
+            <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+              {chartData.map((entry, i) => (
+                <Cell
+                  key={`cell-${i}`}
+                  fill={entry.value >= 0 ? "#10b981" : "#ba1a1a"}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+/* ─── EXPANDED TRAY ─── */
 function ExpandedTray({ record }) {
   const shapSrc = record.raw_shap_data ?? record.raw_data ?? {};
+  const confPct = normConf(record.confidence);
 
   return (
     <tr>
-      <td colSpan={8} className="p-0 border-b border-zinc-900">
+      <td colSpan={8} className="p-0 border-b border-outline-variant">
         <div
-          className="bg-zinc-950 border-t border-zinc-800 px-8 py-6"
-          style={{ animation: "expandDown 0.2s ease both" }}
+          className="bg-surface-container-low border-t border-outline-variant px-6 py-6"
+          style={{ animation: "expandDown 0.22s ease both" }}
         >
           {/* Meta strip */}
-          <div className="flex items-center gap-6 mb-6 pb-4 border-b border-zinc-900">
+          <div className="flex items-center gap-6 mb-5 pb-4 border-b border-outline-variant flex-wrap">
             {[
               {
                 label: "App ID",
@@ -333,65 +306,75 @@ function ExpandedTray({ record }) {
               { label: "City", val: record.city ?? "—" },
               {
                 label: "Confidence",
-                val: `${normalizeConf(record.confidence) ?? "—"}%`,
+                val: confPct != null ? `${confPct}%` : "—",
               },
               { label: "Top Factor", val: record.top_reason ?? "—" },
               { label: "Credit Score", val: fmtScore(record.credit_score) },
+              { label: "Income", val: fmt$(record.income) },
+              { label: "Loan Amount", val: fmt$(record.loan_amount) },
             ].map(({ label, val }) => (
-              <div key={label} className="flex flex-col gap-0.5">
-                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-700">
+              <div key={label}>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">
                   {label}
                 </p>
-                <p className="text-[12px] font-semibold text-zinc-300 font-mono">
+                <p className="text-[12px] font-semibold text-primary mt-0.5 font-mono">
                   {val}
                 </p>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
-            {/* LEFT — AI Voice Message */}
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+            {/* AI Statement */}
             <div className="xl:col-span-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-600 mb-3 flex items-center gap-2">
-                <span className="w-4 h-px bg-zinc-700 inline-block" />
-                AI Evaluation Statement
-              </p>
-              {record.ai_voice_message ? (
-                <blockquote
-                  className="text-[13px] text-zinc-400 italic leading-[1.8]
-                  border-l border-zinc-700 pl-4"
-                >
-                  "{record.ai_voice_message}"
-                </blockquote>
-              ) : (
-                <p className="text-[12px] text-zinc-700 italic">
-                  No statement recorded.
+              <div className="flex items-center gap-2 mb-3">
+                <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
+                  auto_awesome
+                </span>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  AI Evaluation Statement
                 </p>
-              )}
+              </div>
 
-              {/* Status + confidence summary */}
-              <div className="mt-5 flex items-center gap-3">
+              {/* AI card */}
+              <div className="bg-primary-container rounded-xl p-4 relative overflow-hidden">
+                <div className="absolute -top-6 -right-6 w-32 h-32 bg-secondary-container opacity-10 rounded-full blur-3xl pointer-events-none" />
+                {record.ai_voice_message ? (
+                  <blockquote className="text-[13px] text-on-primary-fixed italic leading-relaxed z-10 relative border-l-2 border-on-primary-container/30 pl-3">
+                    "{record.ai_voice_message}"
+                  </blockquote>
+                ) : (
+                  <p className="text-[12px] text-on-primary-container italic">
+                    No statement recorded.
+                  </p>
+                )}
+              </div>
+
+              {/* Status + confidence */}
+              <div className="flex items-center gap-3 mt-4">
                 <StatusBadge status={record.status} />
-                {normalizeConf(record.confidence) != null && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 h-px bg-zinc-800 rounded-full overflow-hidden">
+                {confPct != null && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <div className="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-zinc-400 rounded-full"
-                        style={{
-                          width: `${normalizeConf(record.confidence)}%`,
-                        }}
+                        className={`h-full rounded-full ${
+                          record.status === "Accepted"
+                            ? "bg-emerald-500"
+                            : "bg-error"
+                        }`}
+                        style={{ width: `${confPct}%` }}
                       />
                     </div>
-                    <span className="text-[11px] font-mono text-zinc-500">
-                      {normalizeConf(record.confidence)}% certainty
+                    <span className="text-[11px] font-mono text-on-surface-variant">
+                      {confPct}%
                     </span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* RIGHT — SHAP Force Plot */}
-            <div className="xl:col-span-3">
+            {/* SHAP Chart */}
+            <div className="xl:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-4">
               <ShapForcePlot rawShapData={shapSrc} />
             </div>
           </div>
@@ -401,23 +384,18 @@ function ExpandedTray({ record }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────────── */
+/* ─── MAIN PAGE ─── */
 export default function PortfolioOverviewPage() {
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(null);
-
   const [history, setHistory] = useState([]);
   const [histLoading, setHistLoading] = useState(true);
   const [histError, setHistError] = useState(null);
-
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
 
-  /* ── Fetch stats ── */
   useEffect(() => {
     let dead = false;
     axios
@@ -436,7 +414,6 @@ export default function PortfolioOverviewPage() {
     };
   }, []);
 
-  /* ── Fetch history ── */
   useEffect(() => {
     let dead = false;
     axios
@@ -457,13 +434,13 @@ export default function PortfolioOverviewPage() {
 
   const filtered = history.filter((r) => {
     const q = search.toLowerCase();
-    const matchSearch =
+    const ms =
       !q ||
       (r.applicant_name ?? "").toLowerCase().includes(q) ||
       (r.city ?? "").toLowerCase().includes(q) ||
       String(r.id).includes(q);
-    const matchStatus = filterStatus === "All" || r.status === filterStatus;
-    return matchSearch && matchStatus;
+    const mf = filterStatus === "All" || r.status === filterStatus;
+    return ms && mf;
   });
 
   const toggleRow = (id) => setExpandedId((p) => (p === id ? null : id));
@@ -475,89 +452,82 @@ export default function PortfolioOverviewPage() {
         @keyframes expandDown{ from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
 
-      {/* ── DARK SHELL ── */}
-      <div
-        className="min-h-screen bg-zinc-950 text-white -m-6 p-6"
-        style={{ fontFamily: "'DM Mono', 'JetBrains Mono', monospace" }}
-      >
+      <div className="space-y-6">
         {/* PAGE HEADER */}
-        <div
-          className="border-b border-zinc-800 pb-6 mb-8"
-          style={{ animation: "fadeUp .35s ease both" }}
-        >
+        <Animate variant="fadeDown" duration={500}>
           <div className="flex items-end justify-between flex-wrap gap-4">
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-zinc-600 mb-1">
-                LendClear AI · Portfolio
-              </p>
-              <h1
-                className="text-[28px] font-bold text-white tracking-tight leading-none"
-                style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
-              >
-                Risk Overview
-              </h1>
-              <p className="text-[13px] text-zinc-600 mt-1.5">
-                Live eligibility analytics and decision feed
+              <h2 className="text-[36px] font-bold text-primary tracking-tight leading-tight">
+                Portfolio Overview
+              </h2>
+              <p className="text-[16px] text-on-surface-variant mt-1">
+                Live risk analytics and loan eligibility decision feed.
               </p>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 border border-zinc-800 rounded">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-full bg-surface-container-lowest">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
                 Live
               </span>
             </div>
           </div>
-        </div>
+        </Animate>
 
         {/* KPI CARDS */}
         {statsError ? (
-          <div
-            className="border border-zinc-800 rounded-lg px-5 py-4 flex items-center gap-3 mb-8 bg-zinc-900"
-            style={{ animation: "fadeUp .4s ease both" }}
-          >
-            <span className="text-zinc-500 text-xl">⚠</span>
-            <div>
-              <p className="text-[13px] font-semibold text-zinc-300">
-                Stats unavailable
-              </p>
-              <p className="text-[11px] text-zinc-600 mt-0.5 font-mono">
-                {statsError} · GET /history/summary/stats
-              </p>
+          <Animate variant="fadeUp">
+            <div
+              className="flex items-center gap-3 bg-error-container text-on-error-container
+              rounded-xl px-5 py-4 border border-error"
+            >
+              <span className="material-symbols-outlined text-[22px]">
+                error
+              </span>
+              <div>
+                <p className="text-[14px] font-semibold">Stats unavailable</p>
+                <p className="text-[12px] opacity-80 font-mono mt-0.5">
+                  {statsError} · GET /history/summary/stats
+                </p>
+              </div>
             </div>
-          </div>
+          </Animate>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <KpiCard
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <StatCard
               label="Total Applications"
               value={
                 stats ? Number(stats.total_applications).toLocaleString() : null
               }
               sub={!statsLoading ? `${history.length} records loaded` : null}
+              badge={!statsLoading ? "+12% vs LY" : null}
               loading={statsLoading}
+              delay={0}
             />
-
-            <KpiCard
+            <StatCard
               label="Approval Rate"
               value={stats ? fmtPct(stats.approval_rate_percentage) : null}
               sub={!statsLoading ? "of all processed applications" : null}
+              badge={!statsLoading ? "Stable" : null}
               loading={statsLoading}
+              delay={80}
             >
               <ApprovalBar
                 pct={stats?.approval_rate_percentage}
                 loading={statsLoading}
               />
-            </KpiCard>
-
-            <KpiCard
+            </StatCard>
+            <StatCard
               label="Avg. Credit Score"
               value={stats ? fmtScore(stats.average_credit_score) : null}
               sub={!statsLoading ? "FICO scale 300–850" : null}
+              badge={!statsLoading ? "+4.2%" : null}
               loading={statsLoading}
+              delay={160}
             >
               {!statsLoading && stats && (
-                <div className="w-full h-px bg-zinc-800 rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-zinc-400 rounded-full"
+                    className="h-full bg-primary rounded-full"
                     style={{
                       width: `${Math.min(
                         ((stats.average_credit_score - 300) / 550) * 100,
@@ -567,293 +537,271 @@ export default function PortfolioOverviewPage() {
                   />
                 </div>
               )}
-            </KpiCard>
+            </StatCard>
           </div>
         )}
 
         {/* HISTORY TABLE */}
-        <div
-          className="border border-zinc-800 rounded-lg overflow-hidden"
-          style={{ animation: "fadeUp .4s ease both .1s" }}
-        >
-          {/* Toolbar */}
-          <div
-            className="flex items-center justify-between gap-4 px-5 py-3.5
-            border-b border-zinc-800 flex-wrap bg-zinc-950"
-          >
-            <div className="flex items-center gap-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-600">
-                Loan Records
-              </p>
-              {!histLoading && (
-                <span
-                  className="text-[10px] font-mono text-zinc-700 border border-zinc-800
-                  px-1.5 py-0.5 rounded"
-                >
-                  {filtered.length}
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* Search */}
-              <div className="relative">
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search name, city…"
-                  className="bg-zinc-900 border border-zinc-800 rounded text-[11px]
-                    text-zinc-300 placeholder:text-zinc-700 px-3 py-2 outline-none w-44
-                    focus:border-zinc-600 transition-colors font-mono"
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-700
-                      hover:text-zinc-400 text-[12px]"
-                  >
-                    ✕
-                  </button>
+        <Animate variant="fadeUp" delay={200} threshold={0.05}>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-outline-variant flex-wrap">
+              <div className="flex items-center gap-3">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  Loan Records
+                </p>
+                {!histLoading && (
+                  <span className="text-[10px] font-mono text-on-surface-variant border border-outline-variant px-1.5 py-0.5 rounded">
+                    {filtered.length}
+                  </span>
                 )}
               </div>
-
-              {/* Filter pills */}
-              <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded p-0.5 gap-0.5">
-                {["All", "Accepted", "Rejected"].map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFilterStatus(f)}
-                    className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wide
-                      transition-all
-                      ${
-                        filterStatus === f
-                          ? "bg-white text-zinc-950"
-                          : "text-zinc-600 hover:text-zinc-300"
-                      }`}
-                  >
-                    {f}
-                  </button>
-                ))}
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] pointer-events-none">
+                    person_search
+                  </span>
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search name, city…"
+                    className="pl-9 pr-4 py-2 bg-surface-container-low border border-outline-variant
+                      rounded-lg text-[12px] text-on-surface placeholder:text-outline outline-none
+                      focus:border-primary focus:ring-1 focus:ring-primary transition-all w-44"
+                  />
+                </div>
+                <div className="flex items-center gap-1 bg-surface-container-low border border-outline-variant rounded-lg p-0.5">
+                  {["All", "Accepted", "Rejected"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setFilterStatus(f)}
+                      className={`px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wide transition-all
+                        ${
+                          filterStatus === f
+                            ? "bg-primary text-on-primary shadow-sm"
+                            : "text-on-surface-variant hover:text-on-surface"
+                        }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[12px]">
-              <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-950">
-                  {[
-                    "",
-                    "Applicant",
-                    "Location",
-                    "Income",
-                    "Credit Score",
-                    "Requested",
-                    "Status",
-                    "Conf.",
-                  ].map((h, i) => (
-                    <th
-                      key={i}
-                      className="px-5 py-3 text-left text-[9px] font-bold uppercase
-                      tracking-[0.18em] text-zinc-700 whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {/* Skeletons */}
-                {histLoading &&
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <tr key={i} className="border-b border-zinc-900">
-                      {Array.from({ length: 8 }).map((_, j) => (
-                        <td key={j} className="px-5 py-4">
-                          <Sk
-                            w={`w-${[8, 24, 16, 16, 12, 16, 14, 10][j] || 16}`}
-                            h="h-3"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-
-                {/* Error */}
-                {histError && !histLoading && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-5 py-10 text-center text-zinc-700 text-[12px] font-mono"
-                    >
-                      {histError}
-                    </td>
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-[13px]">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-outline-variant">
+                    {[
+                      "",
+                      "Applicant",
+                      "Location",
+                      "Income",
+                      "Credit Score",
+                      "Requested",
+                      "Status",
+                      "Conf.",
+                    ].map((h, i) => (
+                      <th
+                        key={i}
+                        className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-on-surface-variant whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                )}
-
-                {/* Empty */}
-                {!histLoading && !histError && filtered.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-5 py-12 text-center text-zinc-700 text-[12px]"
-                    >
-                      {search || filterStatus !== "All"
-                        ? "No records match your filters."
-                        : "No applications recorded yet."}
-                    </td>
-                  </tr>
-                )}
-
-                {/* Data rows */}
-                {!histLoading &&
-                  filtered.map((r, idx) => {
-                    const isOpen = expandedId === r.id;
-                    const accepted = r.status === "Accepted";
-                    const initials = fmtInitials(r.applicant_name);
-                    const confPct = normalizeConf(r.confidence);
-
-                    return (
-                      <>
-                        <tr
-                          key={r.id}
-                          onClick={() => toggleRow(r.id)}
-                          className={`border-b cursor-pointer group transition-colors duration-150
-                          ${
-                            isOpen
-                              ? "bg-zinc-900 border-zinc-800"
-                              : "border-zinc-900 hover:bg-zinc-900/50"
-                          }`}
-                          style={{
-                            animation: `fadeUp .35s ease both ${idx * 35}ms`,
-                          }}
-                        >
-                          {/* Expand toggle */}
-                          <td className="px-5 py-4 w-10">
-                            <span
-                              className={`transition-colors ${
-                                isOpen
-                                  ? "text-zinc-400"
-                                  : "text-zinc-700 group-hover:text-zinc-500"
+                </thead>
+                <tbody className="divide-y divide-surface-container-high">
+                  {/* Skeletons */}
+                  {histLoading &&
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={i}>
+                        {Array.from({ length: 8 }).map((_, j) => (
+                          <td key={j} className="px-5 py-4">
+                            <Sk
+                              className={`h-3 ${
+                                [
+                                  "w-6",
+                                  "w-32",
+                                  "w-20",
+                                  "w-20",
+                                  "w-16",
+                                  "w-20",
+                                  "w-16",
+                                  "w-12",
+                                ][j]
                               }`}
-                            >
-                              <Chevron open={isOpen} />
-                            </span>
+                            />
                           </td>
+                        ))}
+                      </tr>
+                    ))}
 
-                          {/* Applicant */}
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2.5">
-                              <div
-                                className="w-7 h-7 rounded bg-zinc-800 border border-zinc-700
-                              flex items-center justify-center text-[10px] font-bold text-zinc-400 flex-shrink-0"
-                                style={{ fontFamily: "system-ui" }}
+                  {/* Error */}
+                  {histError && !histLoading && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-5 py-10 text-center text-[13px] text-on-surface-variant"
+                      >
+                        {histError}
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* Empty */}
+                  {!histLoading && !histError && filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-5 py-14 text-center">
+                        <span className="material-symbols-outlined text-[44px] text-outline-variant block mb-3">
+                          history
+                        </span>
+                        <p className="text-[14px] font-semibold text-on-surface-variant">
+                          {search || filterStatus !== "All"
+                            ? "No records match your filters."
+                            : "No applications yet."}
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* Real rows */}
+                  {!histLoading &&
+                    filtered.map((r, idx) => {
+                      const isOpen = expandedId === r.id;
+                      const ok = r.status === "Accepted";
+                      const inits = initials(r.applicant_name);
+                      const confPct = normConf(r.confidence);
+
+                      return (
+                        <>
+                          <tr
+                            key={r.id}
+                            onClick={() => toggleRow(r.id)}
+                            className={`cursor-pointer group transition-colors hover:bg-surface-bright
+                            ${isOpen ? "bg-surface-container-low" : ""}`}
+                            style={{
+                              animation: `fadeUp .35s ease both ${idx * 40}ms`,
+                            }}
+                          >
+                            {/* Chevron */}
+                            <td className="px-5 py-3 w-10">
+                              <span
+                                className={`transition-colors ${
+                                  isOpen
+                                    ? "text-primary"
+                                    : "text-outline group-hover:text-on-surface-variant"
+                                }`}
                               >
-                                {initials}
-                              </div>
-                              <div>
-                                <p
-                                  className="font-semibold text-zinc-200 leading-tight"
-                                  style={{
-                                    fontFamily: "system-ui",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  {r.applicant_name?.trim() || "—"}
-                                </p>
-                                <p
-                                  className="text-zinc-700 font-mono"
-                                  style={{ fontSize: "10px" }}
-                                >
-                                  APP-{String(r.id).padStart(4, "0")}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Location */}
-                          <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
-                            {r.city ?? "—"}
-                          </td>
-
-                          {/* Income */}
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="font-mono text-zinc-300">
-                              {fmt$(r.income)}
-                            </span>
-                          </td>
-
-                          {/* Credit score */}
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2.5">
-                              <span className="font-mono font-bold text-white">
-                                {fmtScore(r.credit_score)}
+                                <Chevron open={isOpen} />
                               </span>
-                              <div className="w-10 h-px bg-zinc-800 rounded-full overflow-hidden">
+                            </td>
+
+                            {/* Applicant */}
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2.5">
                                 <div
-                                  className={`h-full rounded-full ${
-                                    accepted ? "bg-zinc-300" : "bg-zinc-600"
-                                  }`}
-                                  style={{
-                                    width: `${Math.min(
-                                      ((r.credit_score - 300) / 550) * 100,
-                                      100
-                                    )}%`,
-                                  }}
-                                />
+                                  className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center
+                                justify-center text-[11px] font-bold text-on-surface flex-shrink-0"
+                                >
+                                  {inits}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-primary text-[13px] leading-tight">
+                                    {r.applicant_name?.trim() || "—"}
+                                  </p>
+                                  <p className="text-[11px] text-on-surface-variant font-mono">
+                                    APP-{String(r.id).padStart(4, "0")}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Loan amount */}
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="font-mono text-zinc-300">
-                              {fmt$(r.loan_amount)}
-                            </span>
-                          </td>
-
-                          {/* Status */}
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <StatusBadge status={r.status} />
-                          </td>
-
-                          {/* Confidence */}
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            {confPct != null ? (
-                              <span className="font-mono text-zinc-600 text-[11px]">
-                                {confPct}%
+                            <td className="px-5 py-3 text-on-surface-variant whitespace-nowrap">
+                              {r.city ?? "—"}
+                            </td>
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <span className="font-mono text-primary">
+                                {fmt$(r.income)}
                               </span>
-                            ) : (
-                              <span className="text-zinc-800">—</span>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-primary">
+                                  {fmtScore(r.credit_score)}
+                                </span>
+                                <div className="w-10 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      ok ? "bg-emerald-500" : "bg-error"
+                                    }`}
+                                    style={{
+                                      width: `${Math.min(
+                                        ((r.credit_score - 300) / 550) * 100,
+                                        100
+                                      )}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <span className="font-mono text-primary">
+                                {fmt$(r.loan_amount)}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <StatusBadge status={r.status} />
+                            </td>
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              {confPct != null ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-14 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        ok ? "bg-emerald-500" : "bg-error"
+                                      }`}
+                                      style={{ width: `${confPct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] font-mono text-on-surface-variant">
+                                    {confPct}%
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-on-surface-variant">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          </tr>
 
-                        {/* Expanded tray */}
-                        {isOpen && (
-                          <ExpandedTray key={`tray-${r.id}`} record={r} />
-                        )}
-                      </>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer */}
-          {!histLoading && (
-            <div className="px-5 py-3 border-t border-zinc-900 flex items-center justify-between bg-zinc-950">
-              <p className="text-[10px] font-mono text-zinc-700">
-                {filtered.length} record{filtered.length !== 1 ? "s" : ""}
-                {search || filterStatus !== "All" ? " · filtered" : ""}
-              </p>
-              <p className="text-[10px] font-mono text-zinc-800">
-                ↕ click any row to expand SHAP analysis
-              </p>
+                          {isOpen && (
+                            <ExpandedTray key={`tray-${r.id}`} record={r} />
+                          )}
+                        </>
+                      );
+                    })}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+
+            {/* Footer */}
+            {!histLoading && (
+              <div className="px-5 py-3 border-t border-outline-variant bg-surface-container-low flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-on-surface-variant">
+                  {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+                  {search || filterStatus !== "All" ? " · filtered" : ""}
+                </span>
+                <span className="text-[11px] text-on-surface-variant opacity-60">
+                  Click any row to expand SHAP analysis ↕
+                </span>
+              </div>
+            )}
+          </div>
+        </Animate>
       </div>
     </>
   );
