@@ -19,3 +19,5 @@ class LoanRecord(Base):
     ai_voice_message = Column(String)
     confidence = Column(Float)
     raw_shap_data = Column(JSON) # Stores all factor impacts
+    risk_tier = Column(String, default="Tier 3: High Risk")
+    recommended_amount = Column(Float, nullable=True) #
