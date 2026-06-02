@@ -106,7 +106,6 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
             application.loan_amount, application.years_employed
         )
 
-        # DB SAVE
         new_record = models.LoanRecord(
             applicant_name=application.applicant_name,
             city=application.city,
@@ -138,7 +137,6 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
         logger.error(f"❌ Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# ── 5. Bulk Prediction Endpoint (NEW) ────────────────────────────────
 # ── 5. Bulk Prediction Endpoint (FIXED) ────────────────────────────────
 @router.post("/bulk")
 async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_db)):
