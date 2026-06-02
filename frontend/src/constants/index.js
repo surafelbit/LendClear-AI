@@ -17,7 +17,12 @@ export const FORM_FIELDS = [
 ];
 
 export const NAV_ITEMS = [
-  { icon: "dashboard", label: "Portfolio Overview", active: true },
+  {
+    icon: "dashboard",
+    label: "Portfolio Overview",
+    active: true,
+    id: "overview",
+  },
   {
     icon: "add_circle",
     label: "New Application",
