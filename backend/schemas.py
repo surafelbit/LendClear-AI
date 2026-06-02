@@ -27,6 +27,8 @@ class LoanHistory(BaseModel):
     timestamp: datetime
     raw_shap_data: Optional[Dict] = None # For the SHAP charts in the history view
     confidence: Optional[float] = None
+    risk_tier: str | None = None
+    recommended_amount: float | None = None
 
     class Config:
         # This allows Pydantic to read data from SQLAlchemy models
