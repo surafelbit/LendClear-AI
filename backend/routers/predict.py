@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from google import genai
 from database import get_db
 import models, schemas
-
+reg_model = xgb.XGBRegressor() # NEW: The Safe Amount Calculator
 logger = logging.getLogger("lendclear.predict")
 router = APIRouter(prefix="/predict", tags=["Prediction"])
 
@@ -24,6 +24,7 @@ explainer = None
 try:
     # Keep your existing paths
     model.load_model("../ml_research/loan_model_xgb.json")
+    reg_model.load_model("../ml_research/loan_amount_regressor_xgb.json") # LOAD IT    
     explainer = shap.TreeExplainer(model)
     encoders = joblib.load("../ml_research/encoders.pkl")
     logger.info("✅ ML Engine Online")
