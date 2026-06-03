@@ -194,7 +194,6 @@ async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_d
                 years_employed=float(row['years_employed'])
             )
 
-            # 2. ADDED applicant_name here to save it cleanly into the DB
             db_record = models.LoanRecord(
                 applicant_name=row.get('applicant_name', 'Unknown User'), # <-- ASSIGNED HERE
                 city=row.get('city', 'Unknown'),
