@@ -38,9 +38,32 @@ gemini_client = genai.Client(api_key=GEMINI_KEY)
 # ── 3. Internal Helper (The "Brain") ──────────────────────────────────
 # This function handles the logic for BOTH single and bulk predictions.
 def run_internal_prediction(city: str, income: float, credit_score: float, loan_amount: float, years_employed: float):
-    feature_names = ["city", "income", "credit_score", "loan_amount", "years_employed"]
+    # feature_names = ["city", "income", "credit_score", "loan_amount", "years_employed"]
 
-    # A. Encoding
+    # # A. Encoding
+    # city_int = 0
+    # if "city" in encoders:
+    #     try:
+    #         city_int = int(encoders["city"].transform([city])[0])
+    #     except:
+    #         city_int = 0
+
+    # # B. Data Prep
+    # raw = {
+    #     "city": city_int,
+    #     "income": int(income),
+    #     "credit_score": int(credit_score),
+    #     "loan_amount": int(loan_amount),
+    #     "years_employed": int(years_employed),
+    # }
+    # df = pd.DataFrame([raw])[feature_names]
+
+    # # C. Prediction
+    # prediction = int(model.predict(df)[0])
+    # probability = float(model.predict_proba(df)[0][1])
+    feature_names = ["city", "income", "credit_score", "loan_amount", "years_employed", "dti_ratio", "stability_index"]
+
+    # (Your existing LabelEncoder code for city goes here)
     city_int = 0
     if "city" in encoders:
         try:
@@ -48,17 +71,25 @@ def run_internal_prediction(city: str, income: float, credit_score: float, loan_
         except:
             city_int = 0
 
-    # B. Data Prep
+    # ── 2. CALCULATE THE NEW ENGINEERED FEATURES ON THE FLY ──
+    calculated_dti = loan_amount / (income + 1)
+    calculated_stability = years_employed * credit_score
+
+    # ── 3. ADD THEM TO YOUR RAW DICTIONARY ──
     raw = {
         "city": city_int,
         "income": int(income),
         "credit_score": int(credit_score),
         "loan_amount": int(loan_amount),
         "years_employed": int(years_employed),
+        "dti_ratio": float(calculated_dti),          # 💥 Added
+        "stability_index": float(calculated_stability) # 💥 Added
     }
+    
+    # 4. Create the DataFrame and enforce the 7-column order
     df = pd.DataFrame([raw])[feature_names]
 
-    # C. Prediction
+    # Now when this runs, it has all 7 features and will match perfectly!
     prediction = int(model.predict(df)[0])
     probability = float(model.predict_proba(df)[0][1])
     status = "Accepted" if prediction == 1 else "Rejected"
@@ -117,7 +148,9 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
             top_reason=result["top_reason"],
             ai_voice_message=result["ai_message"],
             confidence=result["probability"],
-            raw_shap_data=result["impacts"]
+            raw_shap_data=result["impacts"],
+            risk_tier=result["risk_tier"],
+            recommended_amount=result["recommended_amount"]
         )
         db.add(new_record)
         db.commit()
@@ -132,6 +165,8 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
             "top_reason": result["top_reason"],
             "ai_voice_message": result["ai_message"],
             "raw_data": result["impacts"],
+            "risk_tier": result["risk_tier"],
+            "recommended_amount": result["recommended_amount"]
         }
     except Exception as e:
         logger.error(f"❌ Error: {e}")
