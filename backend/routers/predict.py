@@ -93,6 +93,19 @@ def run_internal_prediction(city: str, income: float, credit_score: float, loan_
     prediction = int(model.predict(df)[0])
     probability = float(model.predict_proba(df)[0][1])
     status = "Accepted" if prediction == 1 else "Rejected"
+    if probability >= 0.85:
+        risk_tier = "Tier 1: Low Risk"
+    elif probability >= 0.55:
+        risk_tier = "Tier 2: Medium Risk"
+    else:
+        risk_tier = "Tier 3: High Risk"
+    try:
+        reg_prediction = float(reg_model.predict(df)[0])
+        # Enforce that a recommended loan amount can't drop below zero
+        recommended_amount = round(max(0.0, reg_prediction), 2)
+    except Exception as reg_err:
+        logger.error(f"❌ Regressor Prediction Error: {reg_err}")
+        recommended_amount = round(loan_amount, 2) #    
 
     # D. SHAP logic
     shap_values = explainer.shap_values(df)
@@ -124,7 +137,9 @@ def run_internal_prediction(city: str, income: float, credit_score: float, loan_
         "probability": probability,
         "impacts": impacts,
         "top_reason": top_reason_display,
-        "ai_message": ai_message
+        "ai_message": ai_message,
+        "risk_tier": risk_tier,                 # ◄── Added to dictionary
+        "recommended_amount": recommended_amount
     }
 
 # ── 4. Single Prediction Endpoint ─────────────────────────────────────
@@ -149,6 +164,7 @@ def predict_loan(application: schemas.LoanApplication, db: Session = Depends(get
             ai_voice_message=result["ai_message"],
             confidence=result["probability"],
             raw_shap_data=result["impacts"],
+            
             risk_tier=result["risk_tier"],
             recommended_amount=result["recommended_amount"]
         )
