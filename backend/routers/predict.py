@@ -221,7 +221,7 @@ async def predict_bulk(file: UploadFile = File(...), db: Session = Depends(get_d
                 top_reason=res["top_reason"],
                 ai_voice_message=res["ai_message"],
                 confidence=res["probability"],
-                raw_shap_data=res["impacts"]
+                raw_shap_data=res["impacts"],
                 risk_tier=res["risk_tier"],
                 recommended_amount=res["recommended_amount"]
             )
