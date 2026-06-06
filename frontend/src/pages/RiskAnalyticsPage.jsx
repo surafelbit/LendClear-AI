@@ -1065,7 +1065,7 @@
 //     </>
 //   );
 // }
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import {
   BarChart,
@@ -1075,20 +1075,59 @@ import {
   CartesianGrid,
   Tooltip,
   Cell,
+  ReferenceLine,
   ResponsiveContainer,
-  LabelList,
+  PieChart,
+  Pie,
+  Legend,
 } from "recharts";
-import Icon from "../components/ui/Icon";
 import { Animate } from "../components/ui/Animate";
 
-/* ─────────────────────────────────────────────
-   API
-───────────────────────────────────────────── */
-const API_URL = "http://127.0.0.1:8000/api/analytics/";
+/* ─── API ─── */
+const ANALYTICS_URL = "http://local:8000/history/summary/stats";
+const HISTORY_URL = "http://localhost:8000/history";
 
-/* ─────────────────────────────────────────────
-   SKELETON
-───────────────────────────────────────────── */
+/* ─── FORMATTERS ─── */
+const fmt$ = (n) =>
+  n == null
+    ? "—"
+    : new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+      }).format(n);
+
+const fmtPct = (n) => (n == null ? "—" : `${parseFloat(n).toFixed(1)}%`);
+const fmtScore = (n) => (n == null ? "—" : Math.round(n).toLocaleString());
+const fmtTS = (ts) =>
+  !ts
+    ? "—"
+    : new Date(ts).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+
+const normConf = (raw) => {
+  const n = parseFloat(raw);
+  return isNaN(n) ? null : Math.round(n > 1 ? n : n * 100);
+};
+
+const initials = (name) => {
+  if (!name?.trim()) return "??";
+  const p = name.trim().split(" ");
+  return p.length >= 2
+    ? (p[0][0] + p[p.length - 1][0]).toUpperCase()
+    : name.substring(0, 2).toUpperCase();
+};
+
+const toTitle = (key) =>
+  key
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+/* ─── SKELETON ─── */
 function Sk({ className = "" }) {
   return (
     <div
@@ -1097,695 +1136,1207 @@ function Sk({ className = "" }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   KPI CARD
-───────────────────────────────────────────── */
-function MetricCard({ metric, index, loading }) {
-  if (loading) {
-    return (
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <Sk className="h-3 w-24" />
-          <Sk className="w-9 h-9 rounded-lg" />
+/* ─── STAT CARD ─── */
+function StatCard({
+  label,
+  value,
+  sub,
+  loading,
+  badge,
+  children,
+  delay = 0,
+  icon,
+}) {
+  return (
+    <Animate variant="fadeUp" delay={delay}>
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm flex flex-col gap-3 h-full">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            {icon && (
+              <span className="material-symbols-outlined text-[20px] text-on-surface-variant">
+                {icon}
+              </span>
+            )}
+            <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+              {label}
+            </p>
+          </div>
+          {badge && (
+            <span className="text-[11px] font-bold text-on-tertiary-container">
+              {badge}
+            </span>
+          )}
         </div>
-        <Sk className="h-8 w-20 mb-2" />
-        <Sk className="h-3 w-28" />
+        {loading ? (
+          <Sk className="h-9 w-28" />
+        ) : (
+          <p className="text-[34px] font-bold text-primary tracking-tight leading-none">
+            {value}
+          </p>
+        )}
+        {sub && !loading && (
+          <p className="text-[11px] text-on-surface-variant">{sub}</p>
+        )}
+        {children}
+      </div>
+    </Animate>
+  );
+}
+
+/* ─── APPROVAL BAR ─── */
+function ApprovalBar({ pct, loading }) {
+  const p = Math.min(parseFloat(pct) || 0, 100);
+  if (loading) return <Sk className="h-1.5 w-full" />;
+  return (
+    <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+      <div
+        className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
+        style={{ width: `${p}%` }}
+      />
+    </div>
+  );
+}
+
+/* ─── STATUS BADGE ─── */
+function StatusBadge({ status }) {
+  const ok = status === "Accepted";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold
+      ${ok ? "bg-emerald-100 text-emerald-800" : "bg-error-container text-on-error-container"}`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-emerald-500" : "bg-error"}`}
+      />
+      {status ?? "—"}
+    </span>
+  );
+}
+
+/* ─── CHEVRON ─── */
+function Chevron({ open }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+/* ─── RECHARTS CUSTOM TOOLTIP ─── */
+function ShapTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 shadow-lg">
+      <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+        {d.label}
+      </p>
+      <p
+        className={`text-[14px] font-bold font-mono ${d.value >= 0 ? "text-emerald-600" : "text-error"}`}
+      >
+        {d.value >= 0 ? "+" : ""}
+        {d.value.toFixed(4)}
+      </p>
+      <p className="text-[10px] text-on-surface-variant mt-0.5">
+        {d.value >= 0
+          ? "↑ Pushed toward approval"
+          : "↓ Pulled toward rejection"}
+      </p>
+    </div>
+  );
+}
+
+/* ─── SHAP RECHARTS FORCE PLOT ─── */
+function ShapForcePlot({ rawShapData }) {
+  if (!rawShapData || Object.keys(rawShapData).length === 0) {
+    return (
+      <div className="flex items-center justify-center h-20 border border-outline-variant rounded-lg">
+        <p className="text-[12px] text-on-surface-variant italic">
+          No SHAP data available
+        </p>
       </div>
     );
   }
 
+  const chartData = Object.entries(rawShapData)
+    .map(([key, value]) => ({
+      label: toTitle(key),
+      key,
+      value: parseFloat(value),
+    }))
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+
+  const maxAbs = Math.max(...chartData.map((d) => Math.abs(d.value)), 0.01);
+  const domain = [-maxAbs * 1.25, maxAbs * 1.25];
+  const height = chartData.length * 42 + 50;
+
   return (
-    <Animate variant="fadeUp" delay={index * 70}>
-      <div
-        className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm
-        hover:shadow-md transition-shadow h-full"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-            {metric.label}
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <p className="text-[13px] font-semibold text-on-surface">
+            Risk Factor Attribution
           </p>
-          <div
-            className="w-9 h-9 rounded-lg bg-surface-container-low border border-outline-variant
-            flex items-center justify-center"
-          >
-            <Icon
-              name={metric.icon ?? "analytics"}
-              size={18}
-              className="text-on-surface-variant"
-            />
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mt-0.5">
+            SHAP Impact Value Analysis
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-2 rounded-sm bg-emerald-500" />
+            <span className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant">
+              Toward Approval
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-2 rounded-sm bg-error" />
+            <span className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant">
+              Toward Rejection
+            </span>
           </div>
         </div>
+      </div>
 
-        <p className="text-[30px] font-bold text-primary tracking-tight leading-none">
-          {metric.value}
-        </p>
+      {/* Chart */}
+      <div style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            layout="vertical"
+            data={chartData}
+            margin={{ top: 4, right: 52, left: 8, bottom: 4 }}
+            barSize={13}
+          >
+            <CartesianGrid
+              horizontal={false}
+              vertical
+              strokeDasharray="3 3"
+              stroke="#c6c6cd"
+              opacity={0.4}
+            />
+            <XAxis
+              type="number"
+              domain={domain}
+              tickCount={7}
+              tick={{ fill: "#45464d", fontSize: 10, fontFamily: "monospace" }}
+              axisLine={{ stroke: "#c6c6cd" }}
+              tickLine={{ stroke: "#c6c6cd" }}
+              tickFormatter={(v) =>
+                v === 0 ? "0.00" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}`
+              }
+            />
+            <YAxis
+              type="category"
+              dataKey="label"
+              width={110}
+              tick={{ fill: "#45464d", fontSize: 11, fontFamily: "system-ui" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              content={<ShapTooltip />}
+              cursor={{ fill: "rgba(0,0,0,0.04)" }}
+            />
+            <ReferenceLine x={0} stroke="#76777d" strokeWidth={1.5} />
+            <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+              {chartData.map((entry, i) => (
+                <Cell
+                  key={`cell-${i}`}
+                  fill={entry.value >= 0 ? "#10b981" : "#ba1a1a"}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
 
+/* ─── EXPANDED TRAY ─── */
+function ExpandedTray({ record }) {
+  const shapSrc = record.raw_shap_data ?? record.raw_data ?? {};
+  const confPct = normConf(record.confidence);
+
+  return (
+    <tr>
+      <td colSpan={8} className="p-0 border-b border-outline-variant">
         <div
-          className={`flex items-center gap-1 mt-2 text-[12px] font-semibold
-          ${metric.up ? "text-emerald-600" : "text-error"}`}
+          className="bg-surface-container-low border-t border-outline-variant px-6 py-6"
+          style={{ animation: "expandDown 0.22s ease both" }}
         >
-          <Icon name={metric.up ? "trending_up" : "trending_down"} size={14} />
-          <span>{metric.trend} vs last month</span>
+          {/* Meta strip */}
+          <div className="flex items-center gap-6 mb-5 pb-4 border-b border-outline-variant flex-wrap">
+            {[
+              {
+                label: "App ID",
+                val: `APP-${String(record.id).padStart(4, "0")}`,
+              },
+              { label: "Date", val: fmtTS(record.timestamp) },
+              { label: "City", val: record.city ?? "—" },
+              {
+                label: "Confidence",
+                val: confPct != null ? `${confPct}%` : "—",
+              },
+              { label: "Top Factor", val: record.top_reason ?? "—" },
+              { label: "Credit Score", val: fmtScore(record.credit_score) },
+              { label: "Income", val: fmt$(record.income) },
+              { label: "Loan Amount", val: fmt$(record.loan_amount) },
+            ].map(({ label, val }) => (
+              <div key={label}>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  {label}
+                </p>
+                <p className="text-[12px] font-semibold text-primary mt-0.5 font-mono">
+                  {val}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+            {/* AI Statement */}
+            <div className="xl:col-span-2">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
+                  auto_awesome
+                </span>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  AI Evaluation Statement
+                </p>
+              </div>
+
+              {/* AI card */}
+              <div className="bg-primary-container rounded-xl p-4 relative overflow-hidden">
+                <div className="absolute -top-6 -right-6 w-32 h-32 bg-secondary-container opacity-10 rounded-full blur-3xl pointer-events-none" />
+                {record.ai_voice_message ? (
+                  <blockquote className="text-[13px] text-on-primary-fixed italic leading-relaxed z-10 relative border-l-2 border-on-primary-container/30 pl-3">
+                    "{record.ai_voice_message}"
+                  </blockquote>
+                ) : (
+                  <p className="text-[12px] text-on-primary-container italic">
+                    No statement recorded.
+                  </p>
+                )}
+              </div>
+
+              {/* Status + confidence */}
+              <div className="flex items-center gap-3 mt-4">
+                <StatusBadge status={record.status} />
+                {confPct != null && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <div className="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${record.status === "Accepted" ? "bg-emerald-500" : "bg-error"}`}
+                        style={{ width: `${confPct}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-mono text-on-surface-variant">
+                      {confPct}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SHAP Chart */}
+            <div className="xl:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-4">
+              <ShapForcePlot rawShapData={shapSrc} />
+            </div>
+          </div>
         </div>
+      </td>
+    </tr>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   DONUT CHART  — Approval vs Rejected
+───────────────────────────────────────────── */
+function ApprovalDonut({ history, loading }) {
+  const accepted = history.filter((r) => r.status === "Accepted").length;
+  const rejected = history.filter((r) => r.status === "Rejected").length;
+  const total = accepted + rejected;
+
+  const data = [
+    { name: "Accepted", value: accepted, color: "#10b981" },
+    { name: "Rejected", value: rejected, color: "#ba1a1a" },
+  ];
+
+  const CustomLabel = ({
+    cx,
+    cy,
+    midAngle,
+    innerRadius,
+    outerRadius,
+    percent,
+  }) => {
+    if (percent < 0.05) return null;
+    const RADIAN = Math.PI / 180;
+    const r = innerRadius + (outerRadius - innerRadius) * 0.55;
+    const x = cx + r * Math.cos(-midAngle * RADIAN);
+    const y = cy + r * Math.sin(-midAngle * RADIAN);
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#fff"
+        textAnchor="middle"
+        dominantBaseline="central"
+        style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace" }}
+      >
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
+  };
+
+  return (
+    <Animate variant="slideLeft" delay={120}>
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+        <div className="mb-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Decision Breakdown
+          </p>
+          <p className="text-[13px] text-on-surface-variant mt-0.5">
+            Approval vs Rejection ratio
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="w-32 h-32 rounded-full border-4 border-surface-container-high animate-pulse" />
+          </div>
+        ) : total === 0 ? (
+          <div className="flex items-center justify-center h-48">
+            <p className="text-[13px] text-on-surface-variant italic">
+              No data yet
+            </p>
+          </div>
+        ) : (
+          <>
+            <div style={{ height: 200 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={3}
+                    dataKey="value"
+                    labelLine={false}
+                    label={CustomLabel}
+                    animationBegin={200}
+                    animationDuration={900}
+                  >
+                    {data.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} stroke="transparent" />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(val, name) => [
+                      `${val} (${total > 0 ? ((val / total) * 100).toFixed(1) : 0}%)`,
+                      name,
+                    ]}
+                    contentStyle={{
+                      background: "#fff",
+                      border: "1px solid #c6c6cd",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontFamily: "monospace",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center justify-center gap-6 mt-2">
+              {data.map(({ name, value, color }) => (
+                <div key={name} className="flex items-center gap-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ background: color }}
+                  />
+                  <div>
+                    <p className="text-[11px] font-bold text-primary">{name}</p>
+                    <p className="text-[10px] font-mono text-on-surface-variant">
+                      {value} apps
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </Animate>
   );
 }
 
 /* ─────────────────────────────────────────────
-   CUSTOM TOOLTIP FOR FEATURE CHART
+   CREDIT SCORE DISTRIBUTION BAR CHART
 ───────────────────────────────────────────── */
-function FactorTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
+function CreditScoreDistribution({ history, loading }) {
+  // Bucket into bands of 50 points: 300-349, 350-399 … 800-850
+  const bands = [
+    { label: "300–399", min: 300, max: 399 },
+    { label: "400–499", min: 400, max: 499 },
+    { label: "500–599", min: 500, max: 599 },
+    { label: "600–649", min: 600, max: 649 },
+    { label: "650–699", min: 650, max: 699 },
+    { label: "700–749", min: 700, max: 749 },
+    { label: "750–850", min: 750, max: 850 },
+  ];
+
+  const chartData = bands.map((b) => ({
+    label: b.label,
+    count: history.filter(
+      (r) => r.credit_score >= b.min && r.credit_score <= b.max,
+    ).length,
+    approved: history.filter(
+      (r) =>
+        r.credit_score >= b.min &&
+        r.credit_score <= b.max &&
+        r.status === "Accepted",
+    ).length,
+    rejected: history.filter(
+      (r) =>
+        r.credit_score >= b.min &&
+        r.credit_score <= b.max &&
+        r.status === "Rejected",
+    ).length,
+    isGood: b.min >= 650,
+  }));
+
+  const ScoreTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 shadow-lg">
+        <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+          {label}
+        </p>
+        <p className="text-[13px] font-bold text-primary">
+          {payload[0]?.value ?? 0} applicants
+        </p>
+        <p className="text-[10px] text-emerald-600 mt-0.5">
+          ✓ Accepted: {payload[0]?.payload?.approved ?? 0}
+        </p>
+        <p className="text-[10px] text-error">
+          ✗ Rejected: {payload[0]?.payload?.rejected ?? 0}
+        </p>
+      </div>
+    );
+  };
+
   return (
-    <div
-      className="bg-surface-container-lowest border border-outline-variant rounded-lg
-      px-3 py-2.5 shadow-lg"
-    >
-      <p className="text-[12px] font-bold text-primary">{d.name}</p>
-      <p className="text-[13px] font-bold font-mono text-on-surface mt-0.5">
-        {parseFloat(d.weight).toFixed(1)}%
-      </p>
-      <p className="text-[10px] text-on-surface-variant mt-1 uppercase tracking-wider font-bold">
-        avg. SHAP contribution
-      </p>
-    </div>
+    <Animate variant="slideRight" delay={180}>
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+        <div className="mb-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Credit Score Distribution
+          </p>
+          <p className="text-[13px] text-on-surface-variant mt-0.5">
+            Applicants by FICO score band
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-end justify-center gap-2 h-48 pb-2">
+            {[40, 60, 80, 100, 80, 60, 40].map((h, i) => (
+              <div
+                key={i}
+                className="w-8 bg-surface-container-high rounded-t animate-pulse"
+                style={{ height: `${h}%`, animationDelay: `${i * 80}ms` }}
+              />
+            ))}
+          </div>
+        ) : history.length === 0 ? (
+          <div className="flex items-center justify-center h-48">
+            <p className="text-[13px] text-on-surface-variant italic">
+              No data yet
+            </p>
+          </div>
+        ) : (
+          <div style={{ height: 210 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                margin={{ top: 4, right: 8, left: -16, bottom: 4 }}
+                barSize={26}
+              >
+                <CartesianGrid
+                  vertical={false}
+                  strokeDasharray="3 3"
+                  stroke="#c6c6cd"
+                  opacity={0.35}
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{
+                    fill: "#45464d",
+                    fontSize: 10,
+                    fontFamily: "monospace",
+                  }}
+                  axisLine={{ stroke: "#c6c6cd" }}
+                  tickLine={false}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tick={{
+                    fill: "#45464d",
+                    fontSize: 10,
+                    fontFamily: "monospace",
+                  }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  content={<ScoreTooltip />}
+                  cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                />
+                <Bar
+                  dataKey="count"
+                  radius={[4, 4, 0, 0]}
+                  animationDuration={900}
+                  animationBegin={300}
+                >
+                  {chartData.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={
+                        entry.isGood
+                          ? "#10b981"
+                          : entry.count > 0
+                            ? "#ba1a1a"
+                            : "#e6e8ea"
+                      }
+                      opacity={entry.count === 0 ? 0.3 : 1}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Score legend */}
+        <div className="flex items-center gap-4 mt-1 pt-3 border-t border-outline-variant">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-emerald-500" />
+            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+              650+ (Strong)
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-error" />
+            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+              Below 650 (Risk)
+            </span>
+          </div>
+        </div>
+      </div>
+    </Animate>
   );
 }
 
-/* ─────────────────────────────────────────────
-   FEATURE IMPORTANCE SECTION
-───────────────────────────────────────────── */
-function FeatureImportance({ factors, loading }) {
+/* ─── RISK TIER DISTRIBUTION ─── */
+function RiskTierDistribution({ tiers, loading }) {
   if (loading) {
     return (
-      <div className="flex flex-col gap-5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} style={{ animationDelay: `${i * 60}ms` }}>
-            <div className="flex justify-between mb-1.5">
-              <Sk className="h-3 w-32" />
-              <Sk className="h-3 w-10" />
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+        <div className="mb-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Risk Tier Distribution
+          </p>
+        </div>
+        <div className="space-y-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <div className="flex justify-between">
+                <Sk className="h-4 w-40" />
+                <Sk className="h-4 w-12" />
+              </div>
+              <Sk className="h-3 w-full" />
             </div>
-            <Sk className={`h-3 w-full rounded-full`} />
-          </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!tiers || tiers.length === 0) {
+    return (
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm h-64 flex items-center justify-center">
+        <p className="text-on-surface-variant italic">No tier data available</p>
+      </div>
+    );
+  }
+
+  return (
+    <Animate variant="fadeUp">
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+        <div className="mb-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Risk Tier Distribution
+          </p>
+          <p className="text-[13px] text-on-surface-variant mt-0.5">
+            Portfolio breakdown by risk classification
+          </p>
+        </div>
+
+        <div className="space-y-6">
+          {tiers.map((item, idx) => (
+            <div key={idx} className="space-y-2">
+              <div className="flex justify-between items-baseline">
+                <p className="font-semibold text-on-surface">{item.tier}</p>
+                <div className="text-right">
+                  <p className="font-mono text-primary text-lg font-bold">
+                    {item.count}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant">
+                    {item.percentage}%
+                  </p>
+                </div>
+              </div>
+              <div className="w-full h-2.5 bg-surface-container-high rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-700"
+                  style={{ width: `${item.percentage}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Animate>
+  );
+}
+
+/* ─── ALLOWED AMOUNT SUMMARY ─── */
+function AllowedAmountSummary({ summary, loading }) {
+  if (loading || !summary) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[1, 2].map((i) => (
+          <StatCard key={i} label="—" value={null} loading={true} />
         ))}
       </div>
     );
   }
 
-  if (!factors?.length) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <StatCard
+        label="Total Allowed Amount"
+        value={fmt$(summary.total_allowed_amount)}
+        sub="Portfolio-wide exposure"
+        loading={loading}
+        icon="account_balance"
+        delay={80}
+      />
+      <StatCard
+        label="Average Allowed Amount"
+        value={fmt$(summary.average_allowed_amount)}
+        sub="Per application"
+        loading={loading}
+        icon="trending_up"
+        delay={160}
+      />
+    </div>
+  );
+}
+
+/* ─── FACTORS WEIGHTS ─── */
+function FactorWeights({ factors, loading }) {
+  if (loading || !factors?.length) {
     return (
-      <div className="flex items-center justify-center py-10">
-        <p className="text-[13px] text-on-surface-variant italic">
-          No factor data available.
-        </p>
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+        <div className="mb-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Key Risk Factors
+          </p>
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between">
+              <Sk className="h-4 w-32" />
+              <Sk className="h-4 w-16" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
-  // Sort descending by weight for chart
-  const sorted = [...factors].sort((a, b) => b.weight - a.weight);
-  const maxWeight = sorted[0]?.weight ?? 100;
-
-  // Color by rank: top 2 = primary/dark, positive = emerald, small = outline
-  const getColor = (weight, rank) => {
-    if (rank === 0) return "bg-primary";
-    if (weight >= maxWeight * 0.4) return "bg-error";
-    if (weight >= maxWeight * 0.2) return "bg-emerald-500";
-    if (weight > 0) return "bg-outline";
-    return "bg-surface-container-high";
-  };
-
-  const getChartColor = (weight, rank) => {
-    if (rank === 0) return "#000000";
-    if (weight >= maxWeight * 0.4) return "#ba1a1a";
-    if (weight >= maxWeight * 0.2) return "#10b981";
-    if (weight > 0) return "#76777d";
-    return "#e6e8ea";
-  };
-
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-      {/* LEFT — Horizontal bar chart (Recharts) */}
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">
-          Visual Breakdown
-        </p>
-        <div style={{ height: sorted.length * 44 + 40 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              layout="vertical"
-              data={sorted}
-              margin={{ top: 0, right: 48, left: 8, bottom: 0 }}
-              barSize={18}
-            >
-              <CartesianGrid
-                horizontal={false}
-                vertical
-                strokeDasharray="3 3"
-                stroke="#c6c6cd"
-                opacity={0.3}
-              />
-              <XAxis
-                type="number"
-                domain={[0, Math.ceil(maxWeight * 1.1)]}
-                tick={{
-                  fill: "#45464d",
-                  fontSize: 10,
-                  fontFamily: "monospace",
-                }}
-                axisLine={{ stroke: "#c6c6cd" }}
-                tickLine={{ stroke: "#c6c6cd" }}
-                tickFormatter={(v) => `${v}%`}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={108}
-                tick={{
-                  fill: "#45464d",
-                  fontSize: 11,
-                  fontFamily: "system-ui",
-                }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                content={<FactorTooltip />}
-                cursor={{ fill: "rgba(0,0,0,0.04)" }}
-              />
-              <Bar
-                dataKey="weight"
-                radius={[0, 4, 4, 0]}
-                animationDuration={900}
-                animationBegin={200}
-              >
-                <LabelList
-                  dataKey="weight"
-                  position="right"
-                  formatter={(v) => `${parseFloat(v).toFixed(1)}%`}
-                  style={{
-                    fill: "#45464d",
-                    fontSize: 10,
-                    fontFamily: "monospace",
-                  }}
-                />
-                {sorted.map((entry, i) => (
-                  <Cell key={i} fill={getChartColor(entry.weight, i)} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+    <Animate variant="fadeUp">
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+        <div className="mb-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Key Risk Factors
+          </p>
+          <p className="text-[13px] text-on-surface-variant mt-0.5">
+            Weighted contribution to risk model
+          </p>
         </div>
-      </div>
 
-      {/* RIGHT — Ranked list with progress bars */}
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">
-          Ranked Factors
-        </p>
-        <div className="flex flex-col gap-4">
-          {sorted.map((f, i) => (
-            <Animate key={f.name} variant="fadeUp" delay={i * 60}>
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2.5">
-                    {/* Rank badge */}
-                    <span
-                      className={`w-5 h-5 rounded flex items-center justify-center text-[10px]
-                      font-bold flex-shrink-0
-                      ${
-                        i === 0
-                          ? "bg-primary text-on-primary"
-                          : "bg-surface-container-high text-on-surface-variant"
-                      }`}
-                    >
-                      {i + 1}
-                    </span>
-                    <span className="text-[13px] font-medium text-primary">
-                      {f.name}
-                    </span>
-                  </div>
-                  <span className="text-[13px] font-bold font-mono text-on-surface-variant">
-                    {parseFloat(f.weight).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="h-3 bg-surface-container-high rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${getColor(f.weight, i)}`}
-                    style={{
-                      width: `${f.weight}%`,
-                      transitionDelay: `${i * 60}ms`,
-                    }}
-                  />
-                </div>
+        <div className="space-y-5 pt-2">
+          {factors.map((f, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <div className="flex-1">
+                <p className="font-medium text-on-surface">{f.name}</p>
               </div>
-            </Animate>
+              <div className="w-24 text-right font-mono text-primary font-semibold">
+                {f.weight.toFixed(1)}%
+              </div>
+              <div className="flex-1 h-2 bg-surface-container-high rounded">
+                <div
+                  className="h-full bg-primary rounded transition-all"
+                  style={{ width: `${f.weight}%` }}
+                />
+              </div>
+            </div>
           ))}
         </div>
       </div>
-    </div>
+    </Animate>
   );
 }
 
-/* ─────────────────────────────────────────────
-   PORTFOLIO SUMMARY CARDS
-───────────────────────────────────────────── */
-function PortfolioSummary({ summary, loading }) {
-  const cards = [
-    {
-      label: "Total Recommended Capital",
-      value: summary?.total_recommended_capital ?? "—",
-      icon: "account_balance_wallet",
-      sub: "Sum of all approved lending ceilings",
-      delay: 0,
-    },
-    {
-      label: "Avg. Recommended Amount",
-      value: summary?.average_recommended_amount ?? "—",
-      icon: "trending_up",
-      sub: "Per-applicant recommended ceiling",
-      delay: 80,
-    },
-  ];
+/* ─── MAIN PAGE ─── */
+export default function RiskAnalyticsPage() {
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState(null);
+
+  const [history, setHistory] = useState([]);
+  const [histLoading, setHistLoading] = useState(true);
+  const [histError, setHistError] = useState(null);
+
+  const [expandedId, setExpandedId] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("All");
+
+  /* Fetch Analytics (new contract) */
+  useEffect(() => {
+    let dead = false;
+    axios
+      .get(ANALYTICS_URL, { timeout: 10000 })
+      .then(({ data }) => {
+        if (!dead) setAnalytics(data);
+      })
+      .catch((e) => {
+        if (!dead) {
+          console.error(e);
+          setAnalyticsError(e?.message ?? "Failed to load analytics");
+        }
+      })
+      .finally(() => {
+        if (!dead) setAnalyticsLoading(false);
+      });
+
+    return () => {
+      dead = true;
+    };
+  }, []);
+
+  /* Fetch History (kept for table + charts) */
+  useEffect(() => {
+    let dead = false;
+    axios
+      .get(HISTORY_URL, { timeout: 8000 })
+      .then(({ data }) => {
+        if (!dead) setHistory(Array.isArray(data) ? data : []);
+      })
+      .catch((e) => {
+        if (!dead) setHistError(e?.message ?? "Failed");
+      })
+      .finally(() => {
+        if (!dead) setHistLoading(false);
+      });
+    return () => {
+      dead = true;
+    };
+  }, []);
+
+  const filtered = history.filter((r) => {
+    const q = search.toLowerCase();
+    const ms =
+      !q ||
+      (r.applicant_name ?? "").toLowerCase().includes(q) ||
+      (r.city ?? "").toLowerCase().includes(q) ||
+      String(r.id).includes(q);
+    const mf = filterStatus === "All" || r.status === filterStatus;
+    return ms && mf;
+  });
+
+  const toggleRow = (id) => setExpandedId((p) => (p === id ? null : id));
+
+  const metrics = analytics?.metrics || [];
+  const portfolioSummary = analytics?.portfolio_summary || null;
+  const tierDistribution = analytics?.tier_distribution || [];
+  const factors = analytics?.factors || [];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {cards.map(({ label, value, icon, sub, delay }) => (
-        <Animate key={label} variant="slideLeft" delay={delay}>
-          <div
-            className="bg-surface-container-lowest border border-outline-variant
-            rounded-xl p-5 shadow-sm flex flex-col gap-3 h-full"
-          >
-            <div className="flex items-start justify-between">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                {label}
+    <>
+      <style>{`
+        @keyframes fadeUp    { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes expandDown{ from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
+      <div className="space-y-8">
+        {/* PAGE HEADER */}
+        <Animate variant="fadeDown" duration={500}>
+          <div className="flex items-end justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-[36px] font-bold text-primary tracking-tight leading-tight">
+                Risk Analytics
+              </h2>
+              <p className="text-[16px] text-on-surface-variant mt-1">
+                Portfolio risk tiers, allowed amounts, and factor attribution.
               </p>
-              <div className="w-9 h-9 rounded-lg bg-secondary-container flex items-center justify-center flex-shrink-0">
-                <Icon
-                  name={icon}
-                  size={18}
-                  className="text-on-secondary-container"
-                />
-              </div>
             </div>
-            {loading ? (
-              <Sk className="h-9 w-36" />
-            ) : (
-              <p className="text-[28px] font-bold text-primary tracking-tight leading-none font-mono">
-                {value}
-              </p>
-            )}
-            {!loading && (
-              <p className="text-[11px] text-on-surface-variant">{sub}</p>
-            )}
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-full bg-surface-container-lowest">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+                LIVE
+              </span>
+            </div>
           </div>
         </Animate>
-      ))}
-    </div>
-  );
-}
 
-/* ─────────────────────────────────────────────
-   RISK TIER DISTRIBUTION
-───────────────────────────────────────────── */
-const TIER_COLORS = {
-  "Tier 1": {
-    bar: "bg-emerald-500",
-    badge: "bg-emerald-100 text-emerald-800",
-    dot: "bg-emerald-500",
-  },
-  "Tier 2": {
-    bar: "bg-amber-400",
-    badge: "bg-amber-100   text-amber-800",
-    dot: "bg-amber-400",
-  },
-  "Tier 3": {
-    bar: "bg-error",
-    badge: "bg-error-container text-on-error-container",
-    dot: "bg-error",
-  },
-};
-
-function getTierStyle(tierName) {
-  const key = Object.keys(TIER_COLORS).find((k) => tierName?.startsWith(k));
-  return (
-    TIER_COLORS[key] ?? {
-      bar: "bg-outline",
-      badge: "bg-surface-container text-on-surface-variant",
-      dot: "bg-outline",
-    }
-  );
-}
-
-function TierDistribution({ tiers, loading }) {
-  const total = tiers.reduce((s, t) => s + (t.count ?? 0), 0);
-
-  return (
-    <Animate variant="fadeUp" delay={160} threshold={0.05}>
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-          <div className="flex items-center gap-3">
-            <Icon name="shield" size={22} className="text-primary" />
+        {/* DYNAMIC METRICS ROW */}
+        {analyticsError ? (
+          <div className="flex items-center gap-3 bg-error-container text-on-error-container rounded-xl px-5 py-4 border border-error">
+            <span className="material-symbols-outlined text-[22px]">error</span>
             <div>
-              <h3 className="text-[18px] font-semibold text-primary">
-                Risk Tier Distribution
-              </h3>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mt-0.5">
-                Portfolio breakdown by AI-assigned risk classification
+              <p className="text-[14px] font-semibold">Analytics unavailable</p>
+              <p className="text-[12px] opacity-80 font-mono mt-0.5">
+                {analyticsError} · {ANALYTICS_URL}
               </p>
             </div>
           </div>
-          {!loading && total > 0 && (
-            <span className="text-[11px] font-mono text-on-surface-variant border border-outline-variant px-2.5 py-1 rounded-full">
-              {total.toLocaleString()} total
-            </span>
-          )}
-        </div>
-
-        {/* Loading skeletons */}
-        {loading && (
-          <div className="flex flex-col gap-5">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i}>
-                <div className="flex justify-between mb-2">
-                  <Sk className="h-4 w-40" />
-                  <Sk className="h-4 w-20" />
-                </div>
-                <Sk className="h-4 w-full rounded-full" />
-              </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {metrics.map((m, idx) => (
+              <StatCard
+                key={idx}
+                label={m.label}
+                value={m.value}
+                sub={m.trend ? `${m.trend} ${m.up ? "↑" : "↓"}` : null}
+                badge={null}
+                loading={analyticsLoading}
+                delay={idx * 60}
+                icon={m.icon}
+              />
             ))}
           </div>
         )}
 
-        {/* Empty */}
-        {!loading && tiers.length === 0 && (
-          <div className="flex items-center justify-center py-8">
-            <p className="text-[13px] text-on-surface-variant italic">
-              No tier data available.
-            </p>
-          </div>
-        )}
+        {/* ALLOWED AMOUNT SUMMARY */}
+        <AllowedAmountSummary
+          summary={portfolioSummary}
+          loading={analyticsLoading}
+        />
 
-        {/* Tier rows */}
-        {!loading && tiers.length > 0 && (
-          <div className="flex flex-col gap-5">
-            {tiers.map((t, i) => {
-              const style = getTierStyle(t.tier);
-              const pct = parseFloat(t.percentage ?? 0);
-              return (
-                <Animate key={t.tier} variant="fadeUp" delay={i * 80}>
-                  <div>
-                    {/* Label row */}
-                    <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
-                      <div className="flex items-center gap-3">
-                        {/* Tier badge */}
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
-                          text-[10px] font-bold uppercase tracking-wider ${style.badge}`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${style.dot}`}
-                          />
-                          {t.tier}
-                        </span>
-                        {/* Count */}
-                        <span className="text-[13px] font-semibold text-primary font-mono">
-                          {(t.count ?? 0).toLocaleString()} applicants
-                        </span>
-                      </div>
-                      {/* Percentage */}
-                      <span className="text-[14px] font-bold font-mono text-on-surface-variant">
-                        {pct.toFixed(1)}%
-                      </span>
-                    </div>
-
-                    {/* Progress track */}
-                    <div className="h-4 bg-surface-container-high rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-700 ${style.bar}`}
-                        style={{
-                          width: `${pct}%`,
-                          transitionDelay: `${i * 80}ms`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </Animate>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Visual summary bar (stacked) — only when we have data */}
-        {!loading && tiers.length > 0 && (
-          <div className="mt-6 pt-5 border-t border-outline-variant">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">
-              Portfolio composition
-            </p>
-            <div className="flex h-3 rounded-full overflow-hidden gap-px">
-              {tiers.map((t) => {
-                const style = getTierStyle(t.tier);
-                const pct = parseFloat(t.percentage ?? 0);
-                if (pct === 0) return null;
-                return (
-                  <div
-                    key={t.tier}
-                    className={`h-full ${style.bar} transition-all duration-1000 first:rounded-l-full last:rounded-r-full`}
-                    style={{ width: `${pct}%` }}
-                    title={`${t.tier}: ${pct.toFixed(1)}%`}
-                  />
-                );
-              })}
+        {/* TIER DISTRIBUTION + FACTORS */}
+        {!analyticsError && (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-3">
+              <RiskTierDistribution
+                tiers={tierDistribution}
+                loading={analyticsLoading}
+              />
             </div>
-            <div className="flex items-center gap-5 mt-2.5 flex-wrap">
-              {tiers.map((t) => {
-                const style = getTierStyle(t.tier);
-                return (
-                  <div key={t.tier} className="flex items-center gap-1.5">
-                    <div className={`w-2.5 h-2.5 rounded-sm ${style.bar}`} />
-                    <span className="text-[10px] font-semibold text-on-surface-variant">
-                      {t.tier}
-                    </span>
-                  </div>
-                );
-              })}
+            <div className="lg:col-span-2">
+              <FactorWeights factors={factors} loading={analyticsLoading} />
             </div>
           </div>
         )}
-      </div>
-    </Animate>
-  );
-}
 
-/* ─────────────────────────────────────────────
-   ERROR BANNER
-───────────────────────────────────────────── */
-function ErrorBanner({ message, onRetry }) {
-  return (
-    <Animate variant="fadeUp">
-      <div
-        className="flex items-start gap-4 bg-error-container text-on-error-container
-        rounded-xl px-5 py-4 border border-error mb-6"
-      >
-        <Icon name="error" size={22} className="flex-shrink-0 mt-0.5" />
-        <div className="flex-1">
-          <p className="text-[14px] font-semibold">Analytics Unavailable</p>
-          <p className="text-[12px] opacity-80 mt-0.5">{message}</p>
-          <p className="text-[11px] opacity-60 mt-1 font-mono">
-            Make sure FastAPI is running: <code>uvicorn main:app --reload</code>
-          </p>
-        </div>
-        <button
-          onClick={onRetry}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-error text-on-error
-            rounded-lg text-[12px] font-bold uppercase tracking-wider flex-shrink-0 hover:opacity-90 transition-opacity"
-        >
-          <Icon name="refresh" size={15} />
-          Retry
-        </button>
-      </div>
-    </Animate>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────────── */
-export default function RiskAnalyticsPage() {
-  const [data, setData] = useState(null); // { metrics: [], factors: [] }
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: res } = await axios.get(API_URL, { timeout: 10000 });
-      setData(res);
-    } catch (err) {
-      const msg =
-        err?.response?.data?.detail ??
-        err?.message ??
-        "Failed to reach the analytics endpoint.";
-      setError(msg);
-      console.error("[LendClear] Analytics fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const metrics = data?.metrics ?? [];
-  const factors = data?.factors ?? [];
-  const portfolioSummary = data?.portfolio_summary ?? null;
-  const tierDistribution = data?.tier_distribution ?? [];
-
-  return (
-    <div className="space-y-6">
-      {/* ── Page header ── */}
-      <Animate variant="fadeDown" duration={500}>
-        <div className="flex items-end justify-between flex-wrap gap-4">
-          <div>
-            <h2 className="text-[36px] font-bold text-primary tracking-tight leading-tight">
-              Risk Analytics
-            </h2>
-            <p className="text-[16px] text-on-surface-variant mt-1">
-              Model performance indicators and portfolio risk distribution.
-            </p>
+        {/* EXISTING CHARTS (kept for continuity) */}
+        {!analyticsError && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ApprovalDonut history={history} loading={histLoading} />
+            <CreditScoreDistribution history={history} loading={histLoading} />
           </div>
+        )}
 
-          {/* Live / Last updated indicator */}
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 border border-outline-variant
-            rounded-full bg-surface-container-lowest"
-          >
-            {loading ? (
-              <>
-                <div className="w-1.5 h-1.5 rounded-full bg-outline-variant animate-pulse" />
-                <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                  Loading…
-                </span>
-              </>
-            ) : error ? (
-              <>
-                <div className="w-1.5 h-1.5 rounded-full bg-error" />
-                <span className="text-[11px] font-bold uppercase tracking-widest text-error">
-                  Offline
-                </span>
-              </>
-            ) : (
-              <>
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                  Live
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      </Animate>
-
-      {/* ── Error ── */}
-      {error && <ErrorBanner message={error} onRetry={fetchData} />}
-
-      {/* ── KPI cards ── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {loading
-          ? /* Skeleton cards while loading */
-            Array.from({ length: 4 }).map((_, i) => (
-              <MetricCard key={i} metric={null} index={i} loading />
-            ))
-          : /* Real cards from API */
-            metrics.length > 0
-            ? metrics.map((m, i) => (
-                <MetricCard
-                  key={m.label ?? i}
-                  metric={m}
-                  index={i}
-                  loading={false}
-                />
-              ))
-            : /* Empty state */
-              !error && (
-                <div className="col-span-4 text-center py-8 text-[13px] text-on-surface-variant italic">
-                  No metrics returned by the API.
-                </div>
-              )}
-      </div>
-
-      {/* ── Portfolio Summary ── */}
-      {!error && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-              Portfolio Capital Summary
-            </p>
-          </div>
-          <PortfolioSummary summary={portfolioSummary} loading={loading} />
-        </div>
-      )}
-
-      {/* ── Risk Tier Distribution ── */}
-      {!error && (
-        <TierDistribution tiers={tierDistribution} loading={loading} />
-      )}
-
-      {/* ── Feature importance ── */}
-      <Animate variant="fadeUp" delay={300} threshold={0.05}>
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-6">
-          {/* Section header */}
-          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <Icon name="bar_chart" size={22} className="text-primary" />
-              <div>
-                <h3 className="text-[18px] font-semibold text-primary">
-                  Global Feature Importance
-                </h3>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mt-0.5">
-                  Average SHAP contribution across all applications
+        {/* HISTORY TABLE (unchanged) */}
+        {/* HISTORY TABLE */}
+        <Animate variant="fadeUp" delay={200} threshold={0.05}>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+            {/* Toolbar - unchanged */}
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-outline-variant flex-wrap">
+              <div className="flex items-center gap-3">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  Loan Records
                 </p>
+                {!histLoading && (
+                  <span className="text-[10px] font-mono text-on-surface-variant border border-outline-variant px-1.5 py-0.5 rounded">
+                    {filtered.length}
+                  </span>
+                )}
+              </div>
+              {/* Search & Filter - unchanged */}
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] pointer-events-none">
+                    person_search
+                  </span>
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search name, city…"
+                    className="pl-9 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-[12px] text-on-surface placeholder:text-outline outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all w-44"
+                  />
+                </div>
+                <div className="flex items-center gap-1 bg-surface-container-low border border-outline-variant rounded-lg p-0.5">
+                  {["All", "Accepted", "Rejected"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setFilterStatus(f)}
+                      className={`px-3 py-1.5 rounded text-[11px] font-bold uppercase tracking-wide transition-all
+                ${filterStatus === f ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Factor count badge */}
-            {!loading && factors.length > 0 && (
-              <span
-                className="text-[11px] font-mono text-on-surface-variant border border-outline-variant
-                px-2.5 py-1 rounded-full"
-              >
-                {factors.length} features
-              </span>
+            {/* TABLE */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-[13px]">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-outline-variant">
+                    {[
+                      "", // Chevron
+                      "Applicant",
+                      "Location",
+                      "Income",
+                      "Credit Score",
+                      "Requested",
+                      "Allowed Amount", // ← NEW
+                      "Risk Tier", // ← NEW
+                      "Status",
+                      "Conf.",
+                    ].map((h, i) => (
+                      <th
+                        key={i}
+                        className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-on-surface-variant whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-container-high">
+                  {/* Skeletons */}
+                  {histLoading &&
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={i}>
+                        {Array.from({ length: 10 }).map((_, j) => (
+                          <td key={j} className="px-5 py-4">
+                            <Sk
+                              className={`h-3 ${["w-6", "w-32", "w-20", "w-20", "w-16", "w-20", "w-24", "w-36", "w-16", "w-12"][j]}`}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+
+                  {/* Error */}
+                  {histError && !histLoading && (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        className="px-5 py-10 text-center text-[13px] text-on-surface-variant"
+                      >
+                        {histError}
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* Empty State */}
+                  {!histLoading && !histError && filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={10} className="px-5 py-14 text-center">
+                        <span className="material-symbols-outlined text-[44px] text-outline-variant block mb-3">
+                          history
+                        </span>
+                        <p className="text-[14px] font-semibold text-on-surface-variant">
+                          {search || filterStatus !== "All"
+                            ? "No records match your filters."
+                            : "No applications yet."}
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* REAL ROWS */}
+                  {!histLoading &&
+                    filtered.map((r, idx) => {
+                      const isOpen = expandedId === r.id;
+                      const ok = r.status === "Accepted";
+                      const inits = initials(r.applicant_name);
+                      const confPct = normConf(r.confidence);
+
+                      return (
+                        <>
+                          <tr
+                            key={r.id}
+                            onClick={() => toggleRow(r.id)}
+                            className={`cursor-pointer group transition-colors hover:bg-surface-bright ${isOpen ? "bg-surface-container-low" : ""}`}
+                            style={{
+                              animation: `fadeUp .35s ease both ${idx * 40}ms`,
+                            }}
+                          >
+                            {/* Chevron */}
+                            <td className="px-5 py-3 w-10">
+                              <span
+                                className={`transition-colors ${isOpen ? "text-primary" : "text-outline group-hover:text-on-surface-variant"}`}
+                              >
+                                <Chevron open={isOpen} />
+                              </span>
+                            </td>
+
+                            {/* Applicant */}
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-[11px] font-bold text-on-surface flex-shrink-0">
+                                  {inits}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-primary text-[13px] leading-tight">
+                                    {r.applicant_name?.trim() || "—"}
+                                  </p>
+                                  <p className="text-[11px] text-on-surface-variant font-mono">
+                                    APP-{String(r.id).padStart(4, "0")}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-5 py-3 text-on-surface-variant whitespace-nowrap">
+                              {r.city ?? "—"}
+                            </td>
+
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <span className="font-mono text-primary">
+                                {fmt$(r.income)}
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-primary">
+                                  {fmtScore(r.credit_score)}
+                                </span>
+                                <div className="w-10 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${ok ? "bg-emerald-500" : "bg-error"}`}
+                                    style={{
+                                      width: `${Math.min(((r.credit_score - 300) / 550) * 100, 100)}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <span className="font-mono text-primary">
+                                {fmt$(r.loan_amount)}
+                              </span>
+                            </td>
+
+                            {/* NEW: Allowed Amount */}
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <span className="font-mono font-semibold text-primary">
+                                {r.recommended_amount !== undefined &&
+                                r.recommended_amount !== null
+                                  ? fmt$(r.recommended_amount)
+                                  : "—"}
+                              </span>
+                            </td>
+
+                            {/* NEW: Risk Tier */}
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium
+                        ${
+                          r.risk_tier?.includes("Tier 1")
+                            ? "bg-emerald-100 text-emerald-700"
+                            : r.risk_tier?.includes("Tier 2")
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-error-container text-on-error-container"
+                        }`}
+                              >
+                                {r.risk_tier || "N/A"}
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              <StatusBadge status={r.status} />
+                            </td>
+
+                            <td className="px-5 py-3 whitespace-nowrap">
+                              {confPct != null ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-14 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${ok ? "bg-emerald-500" : "bg-error"}`}
+                                      style={{ width: `${confPct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] font-mono text-on-surface-variant">
+                                    {confPct}%
+                                  </span>
+                                </div>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                          </tr>
+
+                          {isOpen && (
+                            <ExpandedTray key={`tray-${r.id}`} record={r} />
+                          )}
+                        </>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            {!histLoading && (
+              <div className="px-5 py-3 border-t border-outline-variant bg-surface-container-low flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-on-surface-variant">
+                  {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+                  {search || filterStatus !== "All" ? " · filtered" : ""}
+                </span>
+                <span className="text-[11px] text-on-surface-variant opacity-60">
+                  Click any row to expand SHAP analysis ↕
+                </span>
+              </div>
             )}
           </div>
-
-          <FeatureImportance factors={factors} loading={loading} />
-
-          {/* Footer legend */}
-          {!loading && factors.length > 0 && (
-            <div className="mt-6 pt-5 border-t border-outline-variant flex items-center gap-6 flex-wrap">
-              {[
-                { color: "bg-primary", label: "#1 Factor (dominant)" },
-                { color: "bg-error", label: "High impact (≥40%)" },
-                { color: "bg-emerald-500", label: "Medium impact (≥20%)" },
-                { color: "bg-outline", label: "Low impact" },
-              ].map(({ color, label }) => (
-                <div key={label} className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-sm ${color}`} />
-                  <span className="text-[11px] font-semibold text-on-surface-variant">
-                    {label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Animate>
-    </div>
+        </Animate>
+      </div>
+    </>
   );
 }
