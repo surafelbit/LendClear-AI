@@ -103,11 +103,36 @@ def run_internal_prediction(city: str, income: float, credit_score: float, loan_
         reg_prediction = float(reg_model.predict(df)[0])
         # Enforce that a recommended loan amount can't drop below zero
         recommended_amount = round(max(0.0, reg_prediction), 2)
+        
     except Exception as reg_err:
         logger.error(f"❌ Regressor Prediction Error: {reg_err}")
-        recommended_amount = round(loan_amount, 2) #    
+        # FIX 1: If the model crashes, DO NOT echo back the requested loan_amount.
+        # Fall back to a safe baseline ratio of their income instead.
+        recommended_amount = round(float(income) * 0.35, 2)
 
-    # D. SHAP logic
+    # 2. NEW POST-PREDICTION GUARDRAIL
+    # Connect the ML Regressor's output to the actual Risk Classification
+    if risk_tier == "Tier 3: High Risk" or status == "Rejected":
+        if int(credit_score) < 550:
+            # Credit is deeply subprime; force an absolute hard cap of zero
+            recommended_amount = 0.0
+        else:
+            # Borderline rejection: Calculate a strict safety limit based on income
+            strict_income_cap = round(float(income) * 0.40, 2)
+            # Force the recommended amount to be the lower value
+            recommended_amount = min(recommended_amount, strict_income_cap)
+        
+        # Final Sanity Check: If it still matches the requested amount on a rejection, force a reduction
+        if recommended_amount == round(float(loan_amount), 2) and loan_amount > 0:
+            recommended_amount = round(float(loan_amount) * 0.20, 2)
+
+    elif risk_tier == "Tier 2: Medium Risk":
+        # Medium risk safety buffer: Cap the regressor at a reasonable income multiple
+        medium_income_cap = round(float(income) * 2.5, 2)
+        recommended_amount = min(recommended_amount, medium_income_cap)
+
+    # Round final clean value for database storage
+    recommended_amount = round(recommended_amount, 2)
     shap_values = explainer.shap_values(df)
     impacts = dict(zip(feature_names, shap_values[0].tolist()))
     sorted_impacts = sorted(impacts.items(), key=lambda x: abs(x[1]), reverse=True)
